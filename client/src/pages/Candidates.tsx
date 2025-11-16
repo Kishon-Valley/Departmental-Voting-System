@@ -5,12 +5,12 @@ import CandidateCard from "@/components/CandidateCard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import candidate1 from "@assets/generated_images/Male_candidate_headshot_1_42ad3b40.png";
-import candidate2 from "@assets/generated_images/Female_candidate_headshot_1_cd2490c7.png";
-import candidate3 from "@assets/generated_images/Male_candidate_headshot_2_837b20e2.png";
-import candidate4 from "@assets/generated_images/Female_candidate_headshot_2_b501a633.png";
-import candidate5 from "@assets/generated_images/Male_candidate_headshot_3_437e45ec.png";
-import candidate6 from "@assets/generated_images/Female_candidate_headshot_3_55573e1d.png";
+import candidate1 from "@assets/images/Male_candidate_headshot_1_42ad3b40.png";
+import candidate2 from "@assets/images/Female_candidate_headshot_1_cd2490c7.png";
+import candidate3 from "@assets/images/Male_candidate_headshot_2_837b20e2.png";
+import candidate4 from "@assets/images/Female_candidate_headshot_2_b501a633.png";
+import candidate5 from "@assets/images/Male_candidate_headshot_3_437e45ec.png";
+import candidate6 from "@assets/images/Female_candidate_headshot_3_55573e1d.png";
 
 export default function Candidates() {
   const [selectedPosition, setSelectedPosition] = useState("all");
@@ -19,45 +19,45 @@ export default function Candidates() {
   const candidates = [
     {
       id: "1",
-      name: "Kwame Mensah",
+      name: "Emmanuel Asante",
       position: "President",
       photoUrl: candidate1,
-      manifestoSnippet: "Committed to improving student welfare, enhancing academic resources, and creating a more inclusive department for all students.",
+      manifestoSnippet: "Committed to advancing laboratory excellence, improving research facilities, and fostering innovation in medical laboratory science.",
     },
     {
       id: "2",
-      name: "Ama Asante",
+      name: "Priscilla Osei",
       position: "President",
       photoUrl: candidate2,
-      manifestoSnippet: "Focused on transparency, accountability, and inclusive governance. Let's build a stronger community together.",
+      manifestoSnippet: "Focused on bridging theory and practice, enhancing clinical training opportunities, and promoting professional development.",
     },
     {
       id: "3",
-      name: "Kofi Adjei",
+      name: "Samuel Boateng",
       position: "Vice President",
       photoUrl: candidate3,
-      manifestoSnippet: "Dedicated to bridging the gap between students and administration. Your concerns are my priority.",
+      manifestoSnippet: "Dedicated to improving laboratory safety standards, modernizing equipment, and strengthening industry partnerships.",
     },
     {
       id: "4",
-      name: "Abena Owusu",
+      name: "Grace Mensah",
       position: "Vice President",
       photoUrl: candidate4,
-      manifestoSnippet: "Passionate about student engagement and creating opportunities for all to thrive academically and socially.",
+      manifestoSnippet: "Passionate about quality assurance in laboratory practices and creating pathways for research collaboration.",
     },
     {
       id: "5",
-      name: "Yaw Boateng",
+      name: "Daniel Oppong",
       position: "Secretary",
       photoUrl: candidate5,
-      manifestoSnippet: "Organized, efficient, and committed to clear communication. I'll ensure your voices are heard and documented.",
+      manifestoSnippet: "Organized and detail-oriented, committed to maintaining accurate records and facilitating clear communication.",
     },
     {
       id: "6",
-      name: "Akua Gyamfi",
+      name: "Mercy Adjei",
       position: "Treasurer",
       photoUrl: candidate6,
-      manifestoSnippet: "Financial transparency and responsible budget management. Every cedi will be accounted for.",
+      manifestoSnippet: "Financial accountability and transparent budget management for laboratory resources and student activities.",
     },
   ];
 
@@ -80,7 +80,7 @@ export default function Candidates() {
               Meet the Candidates
             </h1>
             <p className="text-muted-foreground max-w-2xl mx-auto" data-testid="text-page-subtitle">
-              Learn about the candidates running for various positions in our department elections
+              Learn about the candidates running for various positions in our Laboratory Technology department elections
             </p>
           </div>
 

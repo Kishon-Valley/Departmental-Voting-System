@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import passport from "./auth/passport";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -9,12 +11,33 @@ declare module 'http' {
     rawBody: unknown
   }
 }
+
+// Body parsing middleware
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+
+// Session configuration
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production", // HTTPS only in production
+      httpOnly: true, // Prevents XSS attacks
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: "lax",
+    },
+  }),
+);
+
+// Initialize Passport and restore authentication state from session
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -71,11 +94,9 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  const host = process.env.NODE_ENV === 'development' ? 'localhost' : '0.0.0.0';
+  
+  server.listen(port, host, () => {
+    log(`serving on ${host}:${port}`);
   });
 })();

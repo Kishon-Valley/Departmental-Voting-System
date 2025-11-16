@@ -32,8 +32,8 @@ export default function Contact() {
                     <Mail className="h-5 w-5 text-primary mt-0.5" />
                     <div>
                       <p className="font-medium mb-1">Email</p>
-                      <a href="mailto:elections@dept.edu.gh" className="text-sm text-muted-foreground hover:text-primary" data-testid="link-email">
-                        elections@dept.edu.gh
+                      <a href="mailto:labtech.elections@ucc.edu.gh" className="text-sm text-muted-foreground hover:text-primary" data-testid="link-email">
+                        labtech.elections@ucc.edu.gh
                       </a>
                     </div>
                   </div>
@@ -42,8 +42,8 @@ export default function Contact() {
                     <Phone className="h-5 w-5 text-primary mt-0.5" />
                     <div>
                       <p className="font-medium mb-1">Phone</p>
-                      <a href="tel:+233XXXXXXXXX" className="text-sm text-muted-foreground hover:text-primary" data-testid="link-phone">
-                        +233 XX XXX XXXX
+                      <a href="tel:+233332132440" className="text-sm text-muted-foreground hover:text-primary" data-testid="link-phone">
+                        +233 33 213 2440
                       </a>
                     </div>
                   </div>
@@ -53,9 +53,9 @@ export default function Contact() {
                     <div>
                       <p className="font-medium mb-1">Office Location</p>
                       <p className="text-sm text-muted-foreground" data-testid="text-address">
-                        Department Office, Room 203<br />
-                        University Campus<br />
-                        Accra, Ghana
+                        Laboratory Technology Department<br />
+                        School of Allied Health Sciences<br />
+                        University of Cape Coast, Ghana
                       </p>
                     </div>
                   </div>
@@ -79,7 +79,7 @@ export default function Contact() {
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                     For urgent technical issues during the voting period, our support team is available 24/7.
                   </p>
-                  <a href="mailto:support@dept.edu.gh" className="text-sm font-medium text-primary hover:underline" data-testid="link-urgent-support">
+                  <a href="mailto:labtech.support@ucc.edu.gh" className="text-sm font-medium text-primary hover:underline" data-testid="link-urgent-support">
                     Contact Emergency Support →
                   </a>
                 </CardContent>

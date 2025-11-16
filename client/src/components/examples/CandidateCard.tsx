@@ -1,5 +1,5 @@
 import CandidateCard from '../CandidateCard'
-import candidatePhoto from '@assets/generated_images/Male_candidate_headshot_1_42ad3b40.png'
+import candidatePhoto from '@assets/images/Male_candidate_headshot_1_42ad3b40.png'
 
 export default function CandidateCardExample() {
   return (

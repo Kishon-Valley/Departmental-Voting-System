@@ -31,26 +31,12 @@ export default function Home() {
       <main className="flex-1">
         <HeroSection />
 
-        <section className="py-16 bg-background">
+        <section className="py-20 bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 mb-4">
-                <h2 className="text-3xl md:text-4xl font-bold font-serif" data-testid="text-countdown-title">
-                  Elections Begin In
-                </h2>
-                <StatusBadge status="upcoming" />
-              </div>
-              <p className="text-muted-foreground max-w-2xl mx-auto">
-                Mark your calendar and prepare to make your voice heard
-              </p>
-            </div>
-            <div className="flex justify-center">
-              <CountdownTimer targetDate={electionDate} />
-            </div>
+            <CountdownTimer targetDate={electionDate} />
+            <StatsSection />
           </div>
         </section>
-
-        <StatsSection />
         <HowToVoteSection />
 
         <section className="py-16 bg-background">

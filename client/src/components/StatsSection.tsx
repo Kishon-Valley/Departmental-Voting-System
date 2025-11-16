@@ -1,51 +1,60 @@
-import { Card } from "@/components/ui/card";
-import { Users, Award, CheckCircle } from "lucide-react";
+import { Users, Briefcase, UserCheck } from "lucide-react";
 
 export default function StatsSection() {
   const stats = [
     {
-      icon: Award,
+      icon: Briefcase,
       value: "8",
       label: "Open Positions",
-      color: "text-chart-1",
+      cardBg: "bg-blue-50/80",
+      iconBg: "bg-blue-100",
+      borderColor: "border-blue-100",
+      textColor: "text-blue-800/90",
     },
     {
       icon: Users,
       value: "24",
       label: "Total Candidates",
-      color: "text-chart-2",
+      cardBg: "bg-purple-50/80",
+      iconBg: "bg-purple-100",
+      borderColor: "border-purple-100",
+      textColor: "text-purple-800/90",
     },
     {
-      icon: CheckCircle,
+      icon: UserCheck,
       value: "1,234",
       label: "Eligible Voters",
-      color: "text-chart-3",
+      cardBg: "bg-emerald-50/80",
+      iconBg: "bg-emerald-100",
+      borderColor: "border-emerald-100",
+      textColor: "text-emerald-800/90",
     },
   ];
 
   return (
-    <section className="py-12 bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {stats.map((stat, index) => (
-            <Card key={index} className="p-6">
-              <div className="flex items-center gap-4">
-                <div className={`${stat.color} bg-accent rounded-lg p-3`}>
-                  <stat.icon className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold font-serif" data-testid={`text-stat-value-${index}`}>
-                    {stat.value}
-                  </p>
-                  <p className="text-sm text-muted-foreground" data-testid={`text-stat-label-${index}`}>
-                    {stat.label}
-                  </p>
-                </div>
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {stats.map((stat, index) => (
+          <div
+            key={index}
+            className={`${stat.cardBg} backdrop-blur-md rounded-2xl p-6 border ${stat.borderColor} shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`${stat.iconBg} rounded-xl p-3 shadow-md border border-white/60`}>
+                <stat.icon className={`h-6 w-6 ${stat.textColor}`} />
               </div>
-            </Card>
-          ))}
-        </div>
+              <div className="flex-1">
+                <p className={`text-3xl font-bold ${stat.textColor} mb-1 tabular-nums`} data-testid={`text-stat-value-${index}`}>
+                  {stat.value}
+                </p>
+                <p className={`text-sm font-semibold ${stat.textColor} opacity-80`} data-testid={`text-stat-label-${index}`}>
+                  {stat.label}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   );
 }

@@ -5,45 +5,46 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft } from "lucide-react";
-import candidate1 from "@assets/generated_images/Male_candidate_headshot_1_42ad3b40.png";
+import candidate1 from "@assets/images/Male_candidate_headshot_1_42ad3b40.png";
 
 export default function CandidateDetail() {
   const [, params] = useRoute("/candidate/:id");
   
   const candidate = {
     id: params?.id || "1",
-    name: "Kwame Mensah",
+    name: "Emmanuel Asante",
     position: "President",
     photoUrl: candidate1,
-    bio: "A dedicated third-year student pursuing a degree in Computer Science with a passion for student leadership and community development. I have served as class representative for two consecutive years and have been actively involved in various departmental initiatives.",
+    bio: "A dedicated third-year student pursuing a degree in Laboratory Technology with a passion for scientific excellence and student leadership. I have served as class representative for two consecutive years and have been actively involved in various departmental initiatives.",
     manifesto: `
-My vision for our department is built on three core pillars:
+My vision for our Laboratory Technology department is built on three core pillars:
 
-**1. Academic Excellence**
-- Advocate for improved laboratory facilities and updated equipment
-- Organize regular study groups and peer tutoring sessions
-- Push for extended library hours during examination periods
-- Establish a departmental scholarship fund for outstanding students
+**1. Laboratory Excellence & Innovation**
+- Advocate for state-of-the-art laboratory equipment and modern diagnostic tools
+- Establish partnerships with leading hospitals and diagnostic centers
+- Promote research opportunities in medical laboratory science
+- Create a departmental innovation fund for student research projects
 
-**2. Student Welfare**
-- Improve communication channels between students and faculty
-- Create safe spaces for student feedback and concerns
-- Organize mental health awareness programs and support systems
-- Enhance campus security and student safety measures
+**2. Professional Development**
+- Organize clinical training workshops and certification programs
+- Strengthen industry connections for internship and job placements
+- Invite guest speakers from renowned medical laboratories
+- Establish mentorship programs with practicing laboratory professionals
 
-**3. Community Engagement**
-- Strengthen relationships with industry partners for internship opportunities
-- Organize career development workshops and networking events
-- Promote departmental sports and cultural activities
-- Foster a more inclusive and welcoming environment for all students
+**3. Student Welfare & Safety**
+- Improve laboratory safety protocols and emergency procedures
+- Enhance communication between students and faculty
+- Create study groups for challenging courses like Clinical Chemistry and Microbiology
+- Advocate for better student facilities and resources
 
-Together, we can build a stronger, more vibrant department that serves the needs of every student. Your voice matters, and I'm committed to ensuring it's heard.
+Together, we can elevate our Laboratory Technology department to become a center of excellence in medical laboratory science. Your voice matters in shaping our professional future.
     `,
     experience: [
       "Class Representative (2023-2024, 2024-2025)",
-      "Member, Academic Board Student Committee",
+      "Member, Laboratory Safety Committee",
       "Volunteer, Department Orientation Program",
-      "Organizer, Tech Innovation Week 2024",
+      "Organizer, Medical Laboratory Science Symposium 2024",
+      "Intern, Cape Coast Teaching Hospital Laboratory",
     ],
   };
 

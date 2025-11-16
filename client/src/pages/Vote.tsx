@@ -1,15 +1,16 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import VotingForm from "@/components/VotingForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Lock } from "lucide-react";
 import { Link } from "wouter";
-import candidate1 from "@assets/generated_images/Male_candidate_headshot_1_42ad3b40.png";
-import candidate2 from "@assets/generated_images/Female_candidate_headshot_1_cd2490c7.png";
-import candidate3 from "@assets/generated_images/Male_candidate_headshot_2_837b20e2.png";
-import candidate4 from "@assets/generated_images/Female_candidate_headshot_2_b501a633.png";
+import candidate1 from "@assets/images/Male_candidate_headshot_1_42ad3b40.png";
+import candidate2 from "@assets/images/Female_candidate_headshot_1_cd2490c7.png";
+import candidate3 from "@assets/images/Male_candidate_headshot_2_837b20e2.png";
+import candidate4 from "@assets/images/Female_candidate_headshot_2_b501a633.png";
 
 export default function Vote() {
   const [votingComplete, setVotingComplete] = useState(false);
@@ -21,15 +22,15 @@ export default function Vote() {
       candidates: [
         {
           id: "c1",
-          name: "Kwame Mensah",
+          name: "Emmanuel Asante",
           photoUrl: candidate1,
-          manifesto: "Committed to improving student welfare, enhancing academic resources, and creating a more inclusive department.",
+          manifesto: "Committed to advancing laboratory excellence, improving research facilities, and fostering innovation in medical laboratory science.",
         },
         {
           id: "c2",
-          name: "Ama Asante",
+          name: "Priscilla Osei",
           photoUrl: candidate2,
-          manifesto: "Focused on transparency, accountability, and inclusive governance. Building a stronger community together.",
+          manifesto: "Focused on bridging theory and practice, enhancing clinical training opportunities, and promoting professional development.",
         },
       ],
     },
@@ -39,15 +40,15 @@ export default function Vote() {
       candidates: [
         {
           id: "c3",
-          name: "Kofi Adjei",
+          name: "Samuel Boateng",
           photoUrl: candidate3,
-          manifesto: "Dedicated to bridging the gap between students and administration. Your concerns are my priority.",
+          manifesto: "Dedicated to improving laboratory safety standards, modernizing equipment, and strengthening industry partnerships.",
         },
         {
           id: "c4",
-          name: "Abena Owusu",
+          name: "Grace Mensah",
           photoUrl: candidate4,
-          manifesto: "Passionate about student engagement and creating opportunities for all to thrive academically.",
+          manifesto: "Passionate about quality assurance in laboratory practices and creating pathways for research collaboration.",
         },
       ],
     },
@@ -59,9 +60,10 @@ export default function Vote() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 py-12">
+    <ProtectedRoute>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {!votingComplete ? (
             <>
@@ -108,7 +110,7 @@ export default function Vote() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <p className="text-muted-foreground leading-relaxed" data-testid="text-success-message">
-                    Thank you for participating in the department elections. Your vote has been recorded securely and anonymously.
+                    Thank you for participating in the Laboratory Technology department elections. Your vote has been recorded securely and anonymously.
                   </p>
                   
                   <div className="bg-muted/50 rounded-lg p-4">
@@ -138,5 +140,6 @@ export default function Vote() {
       </main>
       <Footer />
     </div>
+    </ProtectedRoute>
   );
 }

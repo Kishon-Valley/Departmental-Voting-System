@@ -1,13 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { loginRoute, logoutRoute, meRoute } from "./routes/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Authentication routes
+  app.post("/api/auth/login", loginRoute);
+  app.post("/api/auth/logout", logoutRoute);
+  app.get("/api/auth/me", meRoute);
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Add more routes here as needed
+  // All routes should be prefixed with /api
 
   const httpServer = createServer(app);
 
