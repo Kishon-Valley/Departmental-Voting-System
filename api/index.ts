@@ -37,11 +37,19 @@ async function getApp(): Promise<express.Application> {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Middleware to strip /api prefix if present (for Vercel compatibility)
+  app.use((req, res, next) => {
+    if (req.url?.startsWith('/api/')) {
+      req.url = req.url.replace('/api', '');
+    }
+    next();
+  });
+
   // Request logging
   app.use((req, res, next) => {
     const start = Date.now();
     res.on("finish", () => {
-      console.log(`${req.method} ${req.path} ${res.statusCode} in ${Date.now() - start}ms`);
+      console.log(`${req.method} ${req.url} ${res.statusCode} in ${Date.now() - start}ms`);
     });
     next();
   });
@@ -67,9 +75,27 @@ async function getApp(): Promise<express.Application> {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expressApp = await getApp();
   
+  // Handle Vercel's path - when using rewrites, the path might include /api
+  // We need to strip it so Express routes match correctly
+  const originalUrl = req.url || '';
+  let path = originalUrl;
+  
+  // Strip /api prefix if present (Vercel rewrite preserves original path)
+  if (path.startsWith('/api')) {
+    path = path.replace('/api', '');
+  }
+  
+  // Create modified request with corrected path
+  const modifiedReq = {
+    ...req,
+    url: path,
+    originalUrl: path,
+    path: path.split('?')[0], // Remove query string from path
+  } as any;
+  
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
-    expressApp(req as any, res as any, (err?: any) => {
+    expressApp(modifiedReq, res as any, (err?: any) => {
       if (err) {
         reject(err);
       } else {

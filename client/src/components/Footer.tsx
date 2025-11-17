@@ -16,38 +16,42 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2">
-              <Link href="/candidates">
-                <a className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-candidates">
+              <li>
+                <Link href="/candidates" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-candidates">
                   Candidates
-                </a>
-              </Link>
-              <Link href="/results">
-                <a className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-results">
+                </Link>
+              </li>
+              <li>
+                <Link href="/results" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-results">
                   Results
-                </a>
-              </Link>
-              <Link href="/vote">
-                <a className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-vote">
+                </Link>
+              </li>
+              <li>
+                <Link href="/vote" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-vote">
                   Vote Now
-                </a>
-              </Link>
+                </Link>
+              </li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-semibold mb-4">Support</h4>
             <ul className="space-y-2">
-              <Link href="/contact">
-                <a className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-contact">
+              <li>
+                <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-contact">
                   Contact Us
+                </Link>
+              </li>
+              <li>
+                <a href="#" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-faq">
+                  FAQ
                 </a>
-              </Link>
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-faq">
-                FAQ
-              </a>
-              <a href="#" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-privacy">
-                Privacy Policy
-              </a>
+              </li>
+              <li>
+                <a href="#" className="text-sm text-muted-foreground hover:text-foreground block" data-testid="link-footer-privacy">
+                  Privacy Policy
+                </a>
+              </li>
             </ul>
           </div>
 
