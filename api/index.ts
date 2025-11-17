@@ -4,6 +4,7 @@ import express from "express";
 import session from "express-session";
 import passport from "../server/auth/passport.js";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
+import { uploadAvatarRoute, uploadMiddleware } from "../server/routes/upload.js";
 
 // Initialize Express app (lazy initialization)
 let app: express.Application | null = null;
@@ -50,6 +51,7 @@ async function getApp(): Promise<express.Application> {
   app.post("/auth/logout", logoutRoute);
   app.get("/auth/me", meRoute);
   app.put("/auth/profile", updateProfileRoute);
+  app.post("/auth/upload-avatar", uploadMiddleware, uploadAvatarRoute);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,9 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
+  type CarouselApi,
 } from "@/components/ui/carousel";
-import { User, Edit2, Check, X, UserCircle, Mail, GraduationCap, Hash } from "lucide-react";
+import { User, Edit2, Check, X, UserCircle, Mail, GraduationCap, Hash, Shield, AlertCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -29,10 +30,11 @@ interface StudentConfirmationModalProps {
     fullName: string;
     email?: string | null;
     year?: string | null;
+    profilePicture?: string | null;
   };
   open: boolean;
   onConfirm: () => void;
-  onUpdate: (updatedUser: { email?: string | null; year?: string | null; fullName?: string }) => void;
+  onUpdate: (updatedUser: { email?: string | null; year?: string | null; fullName?: string; profilePicture?: string | null }) => void;
 }
 
 export default function StudentConfirmationModal({
@@ -43,12 +45,31 @@ export default function StudentConfirmationModal({
 }: StudentConfirmationModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [api, setApi] = useState<CarouselApi>();
+  const [current, setCurrent] = useState(0);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     fullName: user.fullName,
     email: user.email || "",
     year: user.year || "",
+    profilePicture: user.profilePicture || "",
   });
   const { toast } = useToast();
+
+  // Track carousel slide changes
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    setCurrent(api.selectedScrollSnap());
+
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap());
+    });
+  }, [api]);
 
   // Reset form when user changes
   useEffect(() => {
@@ -56,6 +77,7 @@ export default function StudentConfirmationModal({
       fullName: user.fullName,
       email: user.email || "",
       year: user.year || "",
+      profilePicture: user.profilePicture || "",
     });
     setIsEditing(false);
   }, [user]);
@@ -69,8 +91,84 @@ export default function StudentConfirmationModal({
       fullName: user.fullName,
       email: user.email || "",
       year: user.year || "",
+      profilePicture: user.profilePicture || "",
     });
     setIsEditing(false);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a JPEG, PNG, or WebP image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload file
+    handleFileUpload(file);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const response = await fetch('/api/auth/upload-avatar', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include', // Include cookies for session
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+        throw new Error(errorData.message || 'Failed to upload image');
+      }
+
+      const data = await response.json();
+      
+      // Update form data with new URL
+      setFormData(prev => ({ ...prev, profilePicture: data.url }));
+      
+      toast({
+        title: "Image uploaded",
+        description: "Your profile picture has been uploaded successfully.",
+      });
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Upload Failed",
+        description: err.message || "Failed to upload image. Please try again.",
+        variant: "destructive",
+      });
+      setPreviewImage(null);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -80,6 +178,7 @@ export default function StudentConfirmationModal({
         fullName: formData.fullName,
         email: formData.email || null,
         year: formData.year || null,
+        profilePicture: formData.profilePicture || null,
       });
 
       if (!response.ok) {
@@ -91,14 +190,16 @@ export default function StudentConfirmationModal({
         email: data.user.email,
         year: data.user.year,
         fullName: data.user.fullName,
+        profilePicture: data.user.profilePicture,
       });
 
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated successfully.",
+        title: "Profile updated",
+        description: "Your details have been saved successfully.",
       });
 
       setIsEditing(false);
+      setPreviewImage(null);
     } catch (error) {
       const err = error as Error;
       toast({
@@ -122,56 +223,88 @@ export default function StudentConfirmationModal({
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-[600px] p-0 gap-0 overflow-hidden border-0 shadow-2xl">
-        {/* Gradient Header */}
-        <div className="relative bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-6 text-primary-foreground">
-          <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,white,transparent)]" />
-          <DialogHeader className="relative z-10">
-            <DialogTitle className="text-2xl font-bold tracking-tight">
-              Confirm Your Details
-            </DialogTitle>
-            <DialogDescription className="text-primary-foreground/90">
-              Please verify your information before proceeding to the voting platform
+      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden border shadow-2xl">
+        {/* Professional Header */}
+        <div className="relative bg-slate-50 dark:bg-slate-900 border-b px-8 py-6">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Shield className="h-5 w-5 text-primary" />
+              </div>
+              <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+                Student Information Verification
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Please review and verify your student information before proceeding. Ensure all details are accurate as they will be used for election verification purposes.
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="p-6 space-y-6 bg-background">
-          {/* Carousel Slider */}
-          <Carousel className="w-full" opts={{ loop: true }}>
-            <CarouselContent>
-              {/* Slide 1: Student Portrait */}
-              <CarouselItem>
-                <div className="flex flex-col items-center space-y-6 p-8 rounded-xl bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl animate-pulse" />
-                    <Avatar className="h-32 w-32 relative z-10 ring-4 ring-primary/20 ring-offset-4 ring-offset-background">
-                      <AvatarImage src={undefined} alt={user.fullName} />
-                      <AvatarFallback className="text-4xl font-bold bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
-                        {getInitials(user.fullName)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="text-lg font-semibold text-foreground">Student Portrait</h3>
-                    <p className="text-sm text-muted-foreground">Your profile picture</p>
-                  </div>
+        <div className="p-8 space-y-6 bg-white dark:bg-slate-950">
+          {/* Student Profile Section */}
+          <div className="flex flex-col items-center space-y-4 pb-6 border-b">
+            <div className="relative">
+              <Avatar className="h-28 w-28 ring-2 ring-slate-200 dark:ring-slate-800 ring-offset-2">
+                <AvatarImage 
+                  src={previewImage || formData.profilePicture || user.profilePicture || undefined} 
+                  alt={user.fullName} 
+                />
+                <AvatarFallback className="text-3xl font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  {getInitials(user.fullName)}
+                </AvatarFallback>
+              </Avatar>
+              {isEditing && (
+                <div className="absolute -bottom-1 -right-1 flex gap-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 rounded-full p-0 border-2 border-white dark:border-slate-950 bg-white dark:bg-slate-900 shadow-md hover:bg-slate-50 dark:hover:bg-slate-800"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    title="Upload image"
+                  >
+                    {isUploading ? (
+                      <div className="h-4 w-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-              </CarouselItem>
+              )}
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{user.fullName}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">{user.indexNumber}</p>
+              {isEditing && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  Click the upload icon to change your profile picture
+                </p>
+              )}
+            </div>
+          </div>
 
-              {/* Slide 2: Personal Information */}
+          {/* Carousel Slider */}
+          <Carousel setApi={setApi} className="w-full" opts={{ loop: false }}>
+            <CarouselContent>
+              {/* Slide 1: Personal Information */}
               <CarouselItem>
-                <div className="p-6 rounded-xl bg-gradient-to-br from-blue-50/50 dark:from-blue-950/20 to-background border border-blue-200/50 dark:border-blue-800/50">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 rounded-lg bg-blue-500/10">
-                      <UserCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold">Personal Information</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <UserCircle className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Personal Information</h3>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="fullName" className="text-sm font-medium flex items-center gap-2">
-                        <User className="h-4 w-4" />
+                      <Label htmlFor="fullName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Full Name
                       </Label>
                       {isEditing ? (
@@ -182,16 +315,82 @@ export default function StudentConfirmationModal({
                             setFormData({ ...formData, fullName: e.target.value })
                           }
                           disabled={isSaving}
-                          className="bg-background"
+                          className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                         />
                       ) : (
-                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                          <span className="font-medium">{user.fullName}</span>
+                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-50">{user.fullName}</span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="profilePicture" className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Profile Picture
+                      </Label>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png,image/webp"
+                              className="hidden"
+                              ref={fileInputRef}
+                              onChange={handleFileSelect}
+                              disabled={isUploading || isSaving}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isUploading || isSaving}
+                              className="flex items-center gap-2"
+                            >
+                              <Upload className="h-4 w-4" />
+                              {isUploading ? "Uploading..." : "Upload Image"}
+                            </Button>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              Max 5MB (JPEG, PNG, WebP)
+                            </span>
+                          </div>
+                          <Input
+                            id="profilePicture"
+                            type="url"
+                            value={formData.profilePicture}
+                            onChange={(e) =>
+                              setFormData({ ...formData, profilePicture: e.target.value })
+                            }
+                            disabled={isSaving}
+                            placeholder="Or enter image URL"
+                            className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                          <span className={`text-sm flex items-center gap-2 ${!user.profilePicture ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50"}`}>
+                            {user.profilePicture ? (
+                              <>
+                                <ImageIcon className="h-4 w-4" />
+                                <span className="truncate max-w-[200px]">{user.profilePicture}</span>
+                              </>
+                            ) : (
+                              "No profile picture"
+                            )}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleEdit}
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -202,32 +401,32 @@ export default function StudentConfirmationModal({
                 </div>
               </CarouselItem>
 
-              {/* Slide 3: Academic Information */}
+              {/* Slide 2: Academic Information */}
               <CarouselItem>
-                <div className="p-6 rounded-xl bg-gradient-to-br from-purple-50/50 dark:from-purple-950/20 to-background border border-purple-200/50 dark:border-purple-800/50">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 rounded-lg bg-purple-500/10">
-                      <GraduationCap className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold">Academic Information</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <GraduationCap className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Academic Information</h3>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="indexNumber" className="text-sm font-medium flex items-center gap-2">
-                        <Hash className="h-4 w-4" />
+                      <Label htmlFor="indexNumber" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Index Number
                       </Label>
                       <Input
                         id="indexNumber"
                         value={user.indexNumber}
                         disabled
-                        className="bg-muted font-mono"
+                        className="bg-slate-100 dark:bg-slate-900 font-mono text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800"
                       />
+                      <p className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        This field cannot be modified
+                      </p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="year" className="text-sm font-medium flex items-center gap-2">
-                        <GraduationCap className="h-4 w-4" />
-                        Year/Class
+                      <Label htmlFor="year" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Academic Year / Class
                       </Label>
                       {isEditing ? (
                         <Input
@@ -237,19 +436,19 @@ export default function StudentConfirmationModal({
                             setFormData({ ...formData, year: e.target.value })
                           }
                           disabled={isSaving}
-                          placeholder="e.g., Year 1, Year 2"
-                          className="bg-background"
+                          placeholder="e.g., Year 1, Year 2, Level 300"
+                          className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                         />
                       ) : (
-                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                          <span className={!user.year ? "text-muted-foreground italic" : ""}>
-                            {user.year || "Not provided"}
+                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                          <span className={`text-sm ${!user.year ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50"}`}>
+                            {user.year || "Not specified"}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -260,19 +459,16 @@ export default function StudentConfirmationModal({
                 </div>
               </CarouselItem>
 
-              {/* Slide 4: Contact Information */}
+              {/* Slide 3: Contact Information */}
               <CarouselItem>
-                <div className="p-6 rounded-xl bg-gradient-to-br from-green-50/50 dark:from-green-950/20 to-background border border-green-200/50 dark:border-green-800/50">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 rounded-lg bg-green-500/10">
-                      <Mail className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold">Contact Information</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <Mail className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Contact Information</h3>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
+                      <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Email Address
                       </Label>
                       {isEditing ? (
@@ -284,19 +480,19 @@ export default function StudentConfirmationModal({
                             setFormData({ ...formData, email: e.target.value })
                           }
                           disabled={isSaving}
-                          placeholder="Enter your email"
-                          className="bg-background"
+                          placeholder="student@example.com"
+                          className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                         />
                       ) : (
-                        <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                          <span className={!user.email ? "text-muted-foreground italic" : ""}>
+                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                          <span className={`text-sm ${!user.email ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50"}`}>
                             {user.email || "Not provided"}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -307,18 +503,34 @@ export default function StudentConfirmationModal({
                 </div>
               </CarouselItem>
             </CarouselContent>
-            <CarouselPrevious className="left-2" />
-            <CarouselNext className="right-2" />
+            <CarouselPrevious className="left-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800" />
+            <CarouselNext className="right-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800" />
           </Carousel>
+
+          {/* Pagination Dots */}
+          <div className="flex justify-center items-center gap-2 pt-4">
+            {[0, 1, 2].map((index) => (
+              <button
+                key={index}
+                onClick={() => api?.scrollTo(index)}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  current === index
+                    ? "w-8 bg-slate-900 dark:bg-slate-50"
+                    : "w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
 
           {/* Edit Mode Actions */}
           {isEditing && (
-            <div className="flex gap-3 justify-end pt-4 border-t">
+            <div className="flex gap-3 justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
               <Button
                 variant="outline"
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="min-w-[100px]"
+                className="min-w-[120px] border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancel
@@ -326,7 +538,7 @@ export default function StudentConfirmationModal({
               <Button 
                 onClick={handleSave} 
                 disabled={isSaving}
-                className="min-w-[100px] bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+                className="min-w-[120px] bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100"
               >
                 <Check className="h-4 w-4 mr-2" />
                 {isSaving ? "Saving..." : "Save Changes"}
@@ -335,20 +547,20 @@ export default function StudentConfirmationModal({
           )}
         </div>
 
-        <DialogFooter className="p-6 pt-0 border-t bg-background flex-col sm:flex-row gap-3">
+        <DialogFooter className="px-8 py-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex-col sm:flex-row gap-3">
           {!isEditing && (
             <>
               <Button
                 variant="outline"
                 onClick={handleEdit}
-                className="w-full sm:w-auto border-2 hover:bg-accent"
+                className="w-full sm:w-auto border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <Edit2 className="h-4 w-4 mr-2" />
-                Edit Details
+                Edit Information
               </Button>
               <Button
                 onClick={onConfirm}
-                className="w-full sm:w-auto bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all"
+                className="w-full sm:w-auto bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-sm hover:shadow-md transition-all"
               >
                 <Check className="h-4 w-4 mr-2" />
                 Confirm & Proceed

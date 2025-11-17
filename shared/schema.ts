@@ -12,6 +12,7 @@ export const insertStudentSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   email: z.string().email().optional().nullable(),
   year: z.string().optional().nullable(),
+  profilePicture: z.string().url().optional().nullable(),
 });
 
 export const loginStudentSchema = z.object({
@@ -34,6 +35,7 @@ export type Student = {
   fullName: string;
   email: string | null;
   year: string | null;
+  profilePicture: string | null;
   hasVoted: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;

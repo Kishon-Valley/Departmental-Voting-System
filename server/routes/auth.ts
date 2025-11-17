@@ -13,6 +13,7 @@ declare global {
       fullName: string;
       email?: string | null;
       year?: string | null;
+      profilePicture?: string | null;
       hasVoted: boolean;
     }
   }
@@ -58,6 +59,7 @@ export function loginRoute(req: Request, res: Response, next: any) {
           fullName: user.fullName,
           email: user.email,
           year: user.year,
+          profilePicture: user.profilePicture,
           hasVoted: user.hasVoted,
         },
       });
@@ -92,6 +94,7 @@ export function meRoute(req: Request, res: Response) {
         fullName: user.fullName,
         email: user.email,
         year: user.year,
+        profilePicture: user.profilePicture,
         hasVoted: user.hasVoted,
       },
     });
@@ -113,6 +116,7 @@ export async function updateProfileRoute(req: Request, res: Response) {
     fullName: z.string().min(1, "Full name is required").optional(),
     email: z.string().email().nullable().optional(),
     year: z.string().nullable().optional(),
+    profilePicture: z.string().url().nullable().optional(),
   });
 
   const validation = updateSchema.safeParse(req.body);
@@ -130,6 +134,7 @@ export async function updateProfileRoute(req: Request, res: Response) {
     req.user.fullName = updatedStudent.fullName;
     req.user.email = updatedStudent.email;
     req.user.year = updatedStudent.year;
+    req.user.profilePicture = updatedStudent.profilePicture;
 
     return res.json({
       message: "Profile updated successfully",
@@ -139,6 +144,7 @@ export async function updateProfileRoute(req: Request, res: Response) {
         fullName: updatedStudent.fullName,
         email: updatedStudent.email,
         year: updatedStudent.year,
+        profilePicture: updatedStudent.profilePicture,
         hasVoted: updatedStudent.hasVoted,
       },
     });

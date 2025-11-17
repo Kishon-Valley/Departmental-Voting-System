@@ -9,6 +9,7 @@ interface User {
   fullName: string;
   email?: string | null;
   year?: string | null;
+  profilePicture?: string | null;
   hasVoted: boolean;
 }
 

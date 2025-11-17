@@ -16,6 +16,7 @@ function mapStudentRow(row: any): Student {
     fullName: row.full_name,
     email: row.email,
     year: row.year,
+    profilePicture: row.profile_picture,
     hasVoted: row.has_voted,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -42,7 +43,7 @@ export interface IStorage {
   getStudent(id: string): Promise<Student | undefined>;
   getStudentByIndexNumber(indexNumber: string): Promise<Student | undefined>;
   createStudent(student: InsertStudent): Promise<Student>;
-  updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null }): Promise<Student>;
+  updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null; profilePicture?: string | null }): Promise<Student>;
   updateStudentHasVoted(indexNumber: string, hasVoted: boolean): Promise<void>;
 }
 
@@ -122,6 +123,7 @@ export class DatabaseStorage implements IStorage {
         full_name: studentData.fullName,
         email: studentData.email,
         year: studentData.year,
+        profile_picture: studentData.profilePicture,
       })
       .select()
       .single();
@@ -130,7 +132,7 @@ export class DatabaseStorage implements IStorage {
     return mapStudentRow(data);
   }
 
-  async updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null }): Promise<Student> {
+  async updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null; profilePicture?: string | null }): Promise<Student> {
     const updateData: any = {
       updated_at: new Date().toISOString(),
     };
@@ -143,6 +145,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (updates.year !== undefined) {
       updateData.year = updates.year;
+    }
+    if (updates.profilePicture !== undefined) {
+      updateData.profile_picture = updates.profilePicture;
     }
 
     const { data, error } = await supabase
