@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface LoginResponse {
   message: string;
@@ -21,41 +19,30 @@ interface LoginResponse {
 }
 
 export default function LoginForm() {
-  const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({
     indexNumber: "",
     password: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-
-  const loginMutation = useMutation({
-    mutationFn: async (data: { indexNumber: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/auth/login", data);
-      return res.json() as Promise<LoginResponse>;
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Login Successful",
-        description: `Welcome, ${data.user.fullName}!`,
-      });
-      // Redirect to home or voting page
-      setLocation("/");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Login Failed",
-        description: error.message || "Invalid index number or password",
-        variant: "destructive",
-      });
-    },
-  });
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await loginMutation.mutateAsync(formData);
+      await login(formData.indexNumber, formData.password);
+      toast({
+        title: "Login Successful",
+        description: "Welcome to the voting portal.",
+      });
+    } catch (error) {
+      const err = error as Error;
+      toast({
+        title: "Login Failed",
+        description: err.message || "Invalid index number or password",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

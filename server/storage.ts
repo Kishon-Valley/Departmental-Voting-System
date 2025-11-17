@@ -1,14 +1,35 @@
-import { eq } from "drizzle-orm";
-import { db } from "./db";
+import { supabase } from "./db";
 import {
   type User,
   type InsertUser,
   type Student,
   type InsertStudent,
-  students,
-  users,
 } from "@shared/schema";
 import { hashPassword } from "./utils/password";
+
+// Helper to map database row (snake_case) to TypeScript type (camelCase)
+function mapStudentRow(row: any): Student {
+  return {
+    id: row.id,
+    indexNumber: row.index_number,
+    password: row.password,
+    fullName: row.full_name,
+    email: row.email,
+    year: row.year,
+    hasVoted: row.has_voted,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapUserRow(row: any): User {
+  return {
+    id: row.id,
+    username: row.username,
+    password: row.password,
+    createdAt: row.created_at,
+  };
+}
 
 // Storage interface for database operations
 export interface IStorage {
@@ -21,73 +42,130 @@ export interface IStorage {
   getStudent(id: string): Promise<Student | undefined>;
   getStudentByIndexNumber(indexNumber: string): Promise<Student | undefined>;
   createStudent(student: InsertStudent): Promise<Student>;
+  updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null }): Promise<Student>;
   updateStudentHasVoted(indexNumber: string, hasVoted: boolean): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return result[0];
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", id)
+      .limit(1)
+      .single();
+    
+    if (error || !data) return undefined;
+    return mapUserRow(data);
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db
-      .select()
-      .from(users)
-      .where(eq(users.username, username))
-      .limit(1);
-    return result[0];
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("username", username)
+      .limit(1)
+      .single();
+    
+    if (error || !data) return undefined;
+    return mapUserRow(data);
   }
 
   async createUser(userData: InsertUser): Promise<User> {
     const hashedPassword = await hashPassword(userData.password);
-    const result = await db
-      .insert(users)
-      .values({
-        ...userData,
+    const { data, error } = await supabase
+      .from("users")
+      .insert({
+        username: userData.username,
         password: hashedPassword,
       })
-      .returning();
-    return result[0];
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return mapUserRow(data);
   }
 
   // Student operations
   async getStudent(id: string): Promise<Student | undefined> {
-    const result = await db
-      .select()
-      .from(students)
-      .where(eq(students.id, id))
-      .limit(1);
-    return result[0];
+    const { data, error } = await supabase
+      .from("students")
+      .select("*")
+      .eq("id", id)
+      .limit(1)
+      .single();
+    
+    if (error || !data) return undefined;
+    return mapStudentRow(data);
   }
 
   async getStudentByIndexNumber(indexNumber: string): Promise<Student | undefined> {
-    const result = await db
-      .select()
-      .from(students)
-      .where(eq(students.indexNumber, indexNumber))
-      .limit(1);
-    return result[0];
+    const { data, error } = await supabase
+      .from("students")
+      .select("*")
+      .eq("index_number", indexNumber)
+      .limit(1)
+      .single();
+    
+    if (error || !data) return undefined;
+    return mapStudentRow(data);
   }
 
   async createStudent(studentData: InsertStudent): Promise<Student> {
     const hashedPassword = await hashPassword(studentData.password);
-    const result = await db
-      .insert(students)
-      .values({
-        ...studentData,
+    const { data, error } = await supabase
+      .from("students")
+      .insert({
+        index_number: studentData.indexNumber,
         password: hashedPassword,
+        full_name: studentData.fullName,
+        email: studentData.email,
+        year: studentData.year,
       })
-      .returning();
-    return result[0];
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return mapStudentRow(data);
+  }
+
+  async updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null }): Promise<Student> {
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.fullName !== undefined) {
+      updateData.full_name = updates.fullName;
+    }
+    if (updates.email !== undefined) {
+      updateData.email = updates.email;
+    }
+    if (updates.year !== undefined) {
+      updateData.year = updates.year;
+    }
+
+    const { data, error } = await supabase
+      .from("students")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return mapStudentRow(data);
   }
 
   async updateStudentHasVoted(indexNumber: string, hasVoted: boolean): Promise<void> {
-    await db
-      .update(students)
-      .set({ hasVoted, updatedAt: new Date() })
-      .where(eq(students.indexNumber, indexNumber));
+    const { error } = await supabase
+      .from("students")
+      .update({ 
+        has_voted: hasVoted, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq("index_number", indexNumber);
+    
+    if (error) throw error;
   }
 }
 

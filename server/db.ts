@@ -1,12 +1,21 @@
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from "@shared/schema";
+import "../env";
 
-if (!process.env.DATABASE_URL) {
+import { createClient } from '@supabase/supabase-js';
+
+if (!process.env.SUPABASE_URL) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "SUPABASE_URL must be set. Did you forget to set your Supabase project URL?",
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+if (!process.env.SUPABASE_ANON_KEY) {
+  throw new Error(
+    "SUPABASE_ANON_KEY must be set. Did you forget to set your Supabase anon key?",
+  );
+}
+
+// Create Supabase client
+export const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);

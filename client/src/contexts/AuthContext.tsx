@@ -16,8 +16,12 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  showConfirmationModal: boolean;
+  pendingUser: User | null;
   login: (indexNumber: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  confirmAndProceed: () => void;
+  updateUser: (updatedUser: Partial<User>) => void;
   refetchUser: () => void;
 }
 
@@ -26,6 +30,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [pendingUser, setPendingUser] = useState<User | null>(null);
 
   // Fetch current user
   const {
@@ -47,10 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: () => {
-      // Refetch user data after successful login
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/");
+    onSuccess: (data) => {
+      // Show confirmation modal with user data instead of redirecting
+      setPendingUser(data.user);
+      setShowConfirmationModal(true);
     },
   });
 
@@ -61,8 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: () => {
-      // Clear user data
+      // Clear user data and close modal
       queryClient.setQueryData(["/api/auth/me"], null);
+      setShowConfirmationModal(false);
+      setPendingUser(null);
       setLocation("/login");
     },
   });
@@ -75,14 +83,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logoutMutation.mutateAsync();
   };
 
+  const confirmAndProceed = () => {
+    // Refetch user data and proceed to home
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    setShowConfirmationModal(false);
+    setPendingUser(null);
+    setLocation("/");
+  };
+
+  const updateUser = (updatedUser: Partial<User>) => {
+    // Update pending user if modal is open, or update cached user data
+    if (showConfirmationModal && pendingUser) {
+      setPendingUser({ ...pendingUser, ...updatedUser });
+    }
+    // Also update the query cache
+    queryClient.setQueryData(["/api/auth/me"], (old: { user: User } | null) => {
+      if (!old) return old;
+      return { user: { ...old.user, ...updatedUser } };
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
         isAuthenticated,
+        showConfirmationModal,
+        pendingUser,
         login,
         logout,
+        confirmAndProceed,
+        updateUser,
         refetchUser: () => refetchUser(),
       }}
     >

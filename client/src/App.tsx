@@ -3,7 +3,8 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import StudentConfirmationModal from "@/components/StudentConfirmationModal";
 import Home from "@/pages/Home";
 import Candidates from "@/pages/Candidates";
 import CandidateDetail from "@/pages/CandidateDetail";
@@ -28,13 +29,31 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const { showConfirmationModal, pendingUser, confirmAndProceed, updateUser } = useAuth();
+
+  return (
+    <>
+      <Router />
+      {pendingUser && (
+        <StudentConfirmationModal
+          user={pendingUser}
+          open={showConfirmationModal}
+          onConfirm={confirmAndProceed}
+          onUpdate={updateUser}
+        />
+      )}
+    </>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <AppContent />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

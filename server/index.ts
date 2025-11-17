@@ -1,3 +1,5 @@
+import "../env";
+
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import passport from "./auth/passport";

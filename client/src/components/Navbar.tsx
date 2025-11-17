@@ -22,22 +22,25 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <Link href="/" className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1">
+          <Link
+            href="/"
+            className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1"
+          >
             <Vote className="h-6 w-6 text-primary" />
             <span className="text-xl font-serif font-semibold">LabTech Elections</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
             {navLinks.map((link) => (
-              <Link key={link.path} href={link.path}>
-                <a
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    isActive(link.path) ? "text-foreground" : "text-muted-foreground"
-                  }`}
-                  data-testid={`link-nav-${link.label.toLowerCase()}`}
-                >
-                  {link.label}
-                </a>
+              <Link
+                key={link.path}
+                href={link.path}
+                className={`text-sm font-medium transition-colors hover:text-primary ${
+                  isActive(link.path) ? "text-foreground" : "text-muted-foreground"
+                }`}
+                data-testid={`link-nav-${link.label.toLowerCase()}`}
+              >
+                {link.label}
               </Link>
             ))}
           </div>
@@ -49,11 +52,9 @@ export default function Navbar() {
                   <User className="h-4 w-4" />
                   <span className="max-w-[150px] truncate">{user.fullName}</span>
                 </div>
-                <Link href="/vote">
-                  <Button size="sm" data-testid="button-vote-now">
-                    Vote Now
-                  </Button>
-                </Link>
+                <Button asChild size="sm" data-testid="button-vote-now">
+                  <Link href="/vote">Vote Now</Link>
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -66,16 +67,12 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Link href="/login">
-                  <Button variant="ghost" size="sm" data-testid="button-login">
-                    Login
-                  </Button>
-                </Link>
-                <Link href="/vote">
-                  <Button size="sm" data-testid="button-vote-now">
-                    Vote Now
-                  </Button>
-                </Link>
+                <Button asChild variant="ghost" size="sm" data-testid="button-login">
+                  <Link href="/login">Login</Link>
+                </Button>
+                <Button asChild size="sm" data-testid="button-vote-now">
+                  <Link href="/vote">Vote Now</Link>
+                </Button>
               </>
             )}
           </div>
@@ -92,18 +89,18 @@ export default function Navbar() {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 space-y-3 border-t">
             {navLinks.map((link) => (
-              <Link key={link.path} href={link.path}>
-                <a
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${
-                    isActive(link.path)
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                  data-testid={`link-mobile-${link.label.toLowerCase()}`}
-                >
-                  {link.label}
-                </a>
+              <Link
+                key={link.path}
+                href={link.path}
+                className={`block px-3 py-2 rounded-md text-base font-medium ${
+                  isActive(link.path)
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+                data-testid={`link-mobile-${link.label.toLowerCase()}`}
+              >
+                {link.label}
               </Link>
             ))}
             <div className="flex flex-col gap-2 px-3 pt-3 border-t">
@@ -113,11 +110,9 @@ export default function Navbar() {
                     <User className="h-4 w-4" />
                     <span className="truncate">{user.fullName}</span>
                   </div>
-                  <Link href="/vote">
-                    <Button className="w-full" data-testid="button-mobile-vote">
-                      Vote Now
-                    </Button>
-                  </Link>
+                  <Button asChild className="w-full" data-testid="button-mobile-vote">
+                    <Link href="/vote">Vote Now</Link>
+                  </Button>
                   <Button
                     variant="outline"
                     className="w-full"
@@ -130,16 +125,17 @@ export default function Navbar() {
                 </>
               ) : (
                 <>
-                  <Link href="/login">
-                    <Button variant="outline" className="w-full" data-testid="button-mobile-login">
-                      Login
-                    </Button>
-                  </Link>
-                  <Link href="/vote">
-                    <Button className="w-full" data-testid="button-mobile-vote">
-                      Vote Now
-                    </Button>
-                  </Link>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full"
+                    data-testid="button-mobile-login"
+                  >
+                    <Link href="/login">Login</Link>
+                  </Button>
+                  <Button asChild className="w-full" data-testid="button-mobile-vote">
+                    <Link href="/vote">Vote Now</Link>
+                  </Button>
                 </>
               )}
             </div>

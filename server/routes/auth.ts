@@ -1,6 +1,8 @@
 import type { Express, Request, Response } from "express";
 import passport from "../auth/passport";
 import { loginStudentSchema } from "@shared/schema";
+import { storage } from "../storage";
+import { z } from "zod";
 
 // Type augmentation for Express Request with user
 declare global {
@@ -95,6 +97,57 @@ export function meRoute(req: Request, res: Response) {
     });
   }
   return res.status(401).json({ message: "Not authenticated" });
+}
+
+/**
+ * Update student profile endpoint
+ * PUT /api/auth/profile
+ */
+export async function updateProfileRoute(req: Request, res: Response) {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  // Validate request body
+  const updateSchema = z.object({
+    fullName: z.string().min(1, "Full name is required").optional(),
+    email: z.string().email().nullable().optional(),
+    year: z.string().nullable().optional(),
+  });
+
+  const validation = updateSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      message: "Validation error",
+      errors: validation.error.errors,
+    });
+  }
+
+  try {
+    const updatedStudent = await storage.updateStudent(req.user.id, validation.data);
+    
+    // Update session user data
+    req.user.fullName = updatedStudent.fullName;
+    req.user.email = updatedStudent.email;
+    req.user.year = updatedStudent.year;
+
+    return res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: updatedStudent.id,
+        indexNumber: updatedStudent.indexNumber,
+        fullName: updatedStudent.fullName,
+        email: updatedStudent.email,
+        year: updatedStudent.year,
+        hasVoted: updatedStudent.hasVoted,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update profile",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
 }
 
 /**

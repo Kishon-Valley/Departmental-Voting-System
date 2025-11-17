@@ -1,6 +1,7 @@
+import "../env";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { loginRoute, logoutRoute, meRoute } from "./routes/auth";
+import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "./routes/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -11,6 +12,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(`${apiPrefix}/auth/login`, loginRoute);
   app.post(`${apiPrefix}/auth/logout`, logoutRoute);
   app.get(`${apiPrefix}/auth/me`, meRoute);
+  app.put(`${apiPrefix}/auth/profile`, updateProfileRoute);
 
   // Add more routes here as needed
 

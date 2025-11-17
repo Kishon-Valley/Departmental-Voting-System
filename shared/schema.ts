@@ -1,41 +1,17 @@
-import { sql } from "drizzle-orm";
-import { boolean, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Admin users table (for future admin functionality)
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// Validation schemas
+export const insertUserSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
 });
 
-// Students table for voting system
-export const students = pgTable("students", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  indexNumber: text("index_number").notNull().unique(),
-  password: text("password").notNull(), // hashed password
-  fullName: text("full_name").notNull(),
-  email: text("email"),
-  year: text("year"), // e.g., "Year 1", "Year 2", etc.
-  hasVoted: boolean("has_voted").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Schemas for validation
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export const insertStudentSchema = createInsertSchema(students).pick({
-  indexNumber: true,
-  password: true,
-  fullName: true,
-  email: true,
-  year: true,
+export const insertStudentSchema = z.object({
+  indexNumber: z.string().min(1, "Index number is required"),
+  password: z.string().min(1, "Password is required"),
+  fullName: z.string().min(1, "Full name is required"),
+  email: z.string().email().optional().nullable(),
+  year: z.string().optional().nullable(),
 });
 
 export const loginStudentSchema = z.object({
@@ -43,9 +19,27 @@ export const loginStudentSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+// Type definitions matching database schema
+export type User = {
+  id: string;
+  username: string;
+  password: string;
+  createdAt: Date | string;
+};
+
+export type Student = {
+  id: string;
+  indexNumber: string;
+  password: string;
+  fullName: string;
+  email: string | null;
+  year: string | null;
+  hasVoted: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
-export type Student = typeof students.$inferSelect;
 export type LoginStudent = z.infer<typeof loginStudentSchema>;
