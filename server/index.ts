@@ -48,6 +48,9 @@ app.use((req, _res, next) => {
       cb?.();
     };
   }
+  if (req.session && typeof (req.session as any).save !== 'function') {
+    (req.session as any).save = (cb?: (err?: any) => void) => cb?.();
+  }
   next();
 });
 
