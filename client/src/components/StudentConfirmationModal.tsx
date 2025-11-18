@@ -279,39 +279,55 @@ export default function StudentConfirmationModal({
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden border shadow-2xl">
-        {/* Professional Header */}
-        <div className="relative bg-slate-50 dark:bg-slate-900 border-b px-8 py-6">
-          <DialogHeader className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-5 w-5 text-primary" />
+      <DialogContent className="sm:max-w-[800px] p-0 gap-0 overflow-hidden border border-slate-200/80 dark:border-slate-800/80 shadow-2xl rounded-xl backdrop-blur-sm">
+        {/* Professional Header with Enhanced Design */}
+        <div className="relative bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 border-b border-slate-200/60 dark:border-slate-800/60 px-8 py-7">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5 dark:from-primary/10" />
+          <DialogHeader className="relative space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/5 dark:from-primary/20 dark:to-primary/10 ring-1 ring-primary/20 dark:ring-primary/30 shadow-sm">
+                  <Shield className="h-7 w-7 text-primary" />
+                </div>
+                <div className="space-y-1.5 pt-0.5">
+                  <DialogTitle className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                    Student Information Verification
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Please review and verify your student information. Ensure all details are accurate before proceeding.
+                  </DialogDescription>
+                </div>
               </div>
-              <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-                Student Information Verification
-              </DialogTitle>
+              {isEditing && (
+                <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border border-amber-200/60 dark:border-amber-800/60 shadow-sm">
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+                    <Edit2 className="h-3.5 w-3.5" />
+                    Editing Mode
+                  </span>
+                </div>
+              )}
             </div>
-            <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Please review and verify your student information before proceeding. Ensure all details are accurate as they will be used for election verification purposes.
-            </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="p-8 space-y-6 bg-white dark:bg-slate-950">
-          {/* Student Profile Section */}
-          <div className="flex flex-col items-center space-y-4 pb-6 border-b">
-            <div className="relative">
-              <Avatar className="h-28 w-28 ring-2 ring-slate-200 dark:ring-slate-800 ring-offset-2">
+        <div className="p-8 space-y-6 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-950 dark:to-slate-900/50 max-h-[70vh] overflow-y-auto">
+          {/* Student Profile Section - Enhanced */}
+          <div className="flex flex-col items-center space-y-5 pb-6 border-b border-slate-200/60 dark:border-slate-800/60">
+            <div className="relative group">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 dark:from-primary/30 dark:to-primary/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <Avatar className="relative h-32 w-32 ring-4 ring-slate-100 dark:ring-slate-800 ring-offset-4 shadow-lg">
                 <AvatarImage 
                   src={previewImage || formData.profilePicture || user.profilePicture || undefined} 
-                  alt={user.fullName} 
+                  alt={user.fullName}
+                  className="object-cover"
                 />
-                <AvatarFallback className="text-3xl font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                <AvatarFallback className="text-3xl font-bold bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-700 dark:text-slate-300">
                   {getInitials(user.fullName)}
                 </AvatarFallback>
               </Avatar>
               {isEditing && (
-                <div className="absolute -bottom-1 -right-1 flex gap-1">
+                <div className="absolute -bottom-2 -right-2 flex gap-1">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -323,26 +339,29 @@ export default function StudentConfirmationModal({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 rounded-full p-0 border-2 border-white dark:border-slate-950 bg-white dark:bg-slate-900 shadow-md hover:bg-slate-50 dark:hover:bg-slate-800"
+                    className="h-10 w-10 rounded-full p-0 border-2 border-white dark:border-slate-950 bg-white dark:bg-slate-900 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    title="Upload image"
+                    title="Upload profile picture"
                   >
                     {isUploading ? (
-                      <div className="h-4 w-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                      <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <Upload className="h-4 w-4" />
+                      <Upload className="h-4 w-4 text-primary" />
                     )}
                   </Button>
                 </div>
               )}
             </div>
-            <div className="text-center space-y-1">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{user.fullName}</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">{user.indexNumber}</p>
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">{user.fullName}</h3>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                <Hash className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                <p className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300">{user.indexNumber}</p>
+              </div>
               {isEditing && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  Click the upload icon to change your profile picture
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 px-4 py-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
+                  💡 Click the upload icon above to change your profile picture
                 </p>
               )}
             </div>
@@ -353,14 +372,16 @@ export default function StudentConfirmationModal({
             <CarouselContent>
               {/* Slide 1: Personal Information */}
               <CarouselItem>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b">
-                    <UserCircle className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Personal Information</h3>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                    <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+                      <UserCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Personal Information</h3>
                   </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <div className="space-y-5">
+                    <div className="space-y-2.5">
+                      <Label htmlFor="fullName" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                         Full Name
                       </Label>
                       {isEditing ? (
@@ -371,30 +392,30 @@ export default function StudentConfirmationModal({
                             setFormData({ ...formData, fullName: e.target.value })
                           }
                           disabled={isSaving}
-                          className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                          className="h-11 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         />
                       ) : (
-                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                           <span className="text-sm font-medium text-slate-900 dark:text-slate-50">{user.fullName}</span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                         </div>
                       )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="profilePicture" className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <div className="space-y-2.5">
+                      <Label htmlFor="profilePicture" className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
                         <ImageIcon className="h-4 w-4" />
                         Profile Picture
                       </Label>
                       {isEditing ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <input
                               type="file"
                               accept="image/jpeg,image/jpg,image/png,image/webp"
@@ -409,12 +430,12 @@ export default function StudentConfirmationModal({
                               size="sm"
                               onClick={() => fileInputRef.current?.click()}
                               disabled={isUploading || isSaving}
-                              className="flex items-center gap-2"
+                              className="flex items-center gap-2 h-10 px-4 border-2 hover:border-primary/50 hover:bg-primary/5 transition-all"
                             >
                               <Upload className="h-4 w-4" />
                               {isUploading ? "Uploading..." : "Upload Image"}
                             </Button>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 px-3 py-1.5 rounded-md bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                               Max 5MB (JPEG, PNG, WebP)
                             </span>
                           </div>
@@ -427,11 +448,11 @@ export default function StudentConfirmationModal({
                             }
                             disabled={isSaving}
                             placeholder="Or enter image URL"
-                            className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                            className="h-11 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                           />
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                           <span className={`text-sm flex items-center gap-2 ${!user.profilePicture ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50"}`}>
                             {user.profilePicture ? (
                               <>
@@ -446,7 +467,7 @@ export default function StudentConfirmationModal({
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -459,29 +480,31 @@ export default function StudentConfirmationModal({
 
               {/* Slide 2: Academic Information */}
               <CarouselItem>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b">
-                    <GraduationCap className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Academic Information</h3>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                    <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
+                      <GraduationCap className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Academic Information</h3>
                   </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="indexNumber" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <div className="space-y-5">
+                    <div className="space-y-2.5">
+                      <Label htmlFor="indexNumber" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                         Index Number
                       </Label>
                       <Input
                         id="indexNumber"
                         value={user.indexNumber}
                         disabled
-                        className="bg-slate-100 dark:bg-slate-900 font-mono text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800"
+                        className="h-11 bg-slate-100/80 dark:bg-slate-900/80 font-mono text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 cursor-not-allowed"
                       />
-                      <p className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
+                      <p className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                         This field cannot be modified
                       </p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="year" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <div className="space-y-2.5">
+                      <Label htmlFor="year" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                         Academic Year / Class
                       </Label>
                       {isEditing ? (
@@ -493,18 +516,18 @@ export default function StudentConfirmationModal({
                           }
                           disabled={isSaving}
                           placeholder="e.g., Year 1, Year 2, Level 300"
-                          className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                          className="h-11 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         />
                       ) : (
-                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                          <span className={`text-sm ${!user.year ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50"}`}>
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                          <span className={`text-sm ${!user.year ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50 font-medium"}`}>
                             {user.year || "Not specified"}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -517,14 +540,16 @@ export default function StudentConfirmationModal({
 
               {/* Slide 3: Contact Information */}
               <CarouselItem>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b">
-                    <Mail className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Contact Information</h3>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+                    <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950/30">
+                      <Mail className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Contact Information</h3>
                   </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <div className="space-y-5">
+                    <div className="space-y-2.5">
+                      <Label htmlFor="email" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                         Email Address
                       </Label>
                       {isEditing ? (
@@ -537,18 +562,18 @@ export default function StudentConfirmationModal({
                           }
                           disabled={isSaving}
                           placeholder="student@example.com"
-                          className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                          className="h-11 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         />
                       ) : (
-                        <div className="flex items-center justify-between p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                          <span className={`text-sm ${!user.email ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50"}`}>
+                        <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-r from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                          <span className={`text-sm ${!user.email ? "text-slate-400 dark:text-slate-600 italic" : "text-slate-900 dark:text-slate-50 font-medium"}`}>
                             {user.email || "Not provided"}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={handleEdit}
-                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50"
+                            className="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -563,30 +588,30 @@ export default function StudentConfirmationModal({
             <CarouselNext className="right-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800" />
           </Carousel>
 
-          {/* Pagination Dots */}
-          <div className="flex justify-center items-center gap-2 pt-4">
+          {/* Pagination Dots - Enhanced */}
+          <div className="flex justify-center items-center gap-2.5 pt-5">
             {[0, 1, 2].map((index) => (
               <button
                 key={index}
                 onClick={() => api?.scrollTo(index)}
-                className={`h-2 rounded-full transition-all duration-300 ${
+                className={`rounded-full transition-all duration-300 ${
                   current === index
-                    ? "w-8 bg-slate-900 dark:bg-slate-50"
-                    : "w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
+                    ? "w-10 h-2.5 bg-gradient-to-r from-primary to-primary/80 dark:from-primary dark:to-primary/80 shadow-md"
+                    : "w-2.5 h-2.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600 hover:scale-125"
                 }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
           </div>
 
-          {/* Edit Mode Actions */}
+          {/* Edit Mode Actions - Enhanced */}
           {isEditing && (
-            <div className="flex gap-3 justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex gap-3 justify-end pt-5 border-t border-slate-200/60 dark:border-slate-800/60">
               <Button
                 variant="outline"
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="min-w-[120px] border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+                className="min-w-[130px] h-11 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-600 transition-all font-medium"
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancel
@@ -594,29 +619,67 @@ export default function StudentConfirmationModal({
               <Button 
                 onClick={handleSave} 
                 disabled={isSaving}
-                className="min-w-[120px] bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100"
+                className="min-w-[130px] h-11 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-50 dark:to-slate-100 text-white dark:text-slate-900 hover:from-slate-800 hover:to-slate-700 dark:hover:from-slate-100 dark:hover:to-slate-200 shadow-lg hover:shadow-xl transition-all font-semibold"
               >
-                <Check className="h-4 w-4 mr-2" />
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white dark:border-slate-900 border-t-transparent rounded-full animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
               </Button>
             </div>
           )}
         </div>
 
-        <DialogFooter className="px-8 py-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex-col sm:flex-row gap-3">
-          {!isEditing && (
+        <DialogFooter className="px-8 py-6 border-t border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-r from-slate-50/80 to-white dark:from-slate-900/80 dark:to-slate-950/80 backdrop-blur-sm flex-col sm:flex-row gap-3">
+          {isEditing ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="w-full sm:w-auto h-11 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-600 transition-all font-medium"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving}
+                className="w-full sm:w-auto h-11 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-50 dark:to-slate-100 text-white dark:text-slate-900 hover:from-slate-800 hover:to-slate-700 dark:hover:from-slate-100 dark:hover:to-slate-200 shadow-lg hover:shadow-xl transition-all font-semibold"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white dark:border-slate-900 border-t-transparent rounded-full animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
             <>
               <Button
                 variant="outline"
                 onClick={handleEdit}
-                className="w-full sm:w-auto border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="w-full sm:w-auto h-11 border-2 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 transition-all font-medium shadow-sm"
               >
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit Information
               </Button>
               <Button
                 onClick={onConfirm}
-                className="w-full sm:w-auto bg-slate-900 dark:bg-slate-50 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 shadow-sm hover:shadow-md transition-all"
+                className="w-full sm:w-auto h-11 bg-gradient-to-r from-primary to-primary/90 dark:from-primary dark:to-primary/90 text-white hover:from-primary/90 hover:to-primary/80 dark:hover:from-primary/90 dark:hover:to-primary/80 shadow-lg hover:shadow-xl transition-all font-semibold"
               >
                 <Check className="h-4 w-4 mr-2" />
                 Confirm & Proceed
