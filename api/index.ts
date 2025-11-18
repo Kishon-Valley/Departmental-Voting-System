@@ -5,6 +5,8 @@ import cookieSession from "cookie-session";
 import passport from "../server/auth/passport.js";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
 import { uploadAvatarRoute } from "../server/routes/upload.js";
+import Busboy from "busboy";
+import { Readable } from "stream";
 
 // Initialize Express app (lazy initialization)
 let app: express.Application | null = null;
@@ -103,133 +105,111 @@ async function getApp(): Promise<express.Application> {
   return app;
 }
 
-// Helper function to parse multipart/form-data for file uploads
+// Helper function to parse multipart/form-data for file uploads using busboy
 async function parseMultipartFormData(req: VercelRequest): Promise<{ body: any; file?: any }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const contentType = req.headers['content-type'] || '';
     if (!contentType.includes('multipart/form-data')) {
       resolve({ body: req.body || {} });
       return;
     }
 
-    const boundaryMatch = contentType.match(/boundary=([^;]+)/);
-    if (!boundaryMatch) {
-      resolve({ body: req.body || {} });
-      return;
-    }
-
-    const boundary = boundaryMatch[1].trim();
-    if (!boundary) {
-      resolve({ body: req.body || {} });
-      return;
-    }
-
-    // For Vercel, try to get raw body
-    // Check if rawBody is available (Vercel might provide it)
-    const rawBody = (req as any).rawBody || req.body;
+    // For Vercel, we need to get the raw body
+    // Vercel might provide it in different ways - check all possibilities
+    let rawBody: Buffer | undefined;
     
-    let bodyBuffer: Buffer;
-    if (Buffer.isBuffer(rawBody)) {
-      bodyBuffer = rawBody;
-    } else if (typeof rawBody === 'string') {
-      bodyBuffer = Buffer.from(rawBody, 'binary');
-    } else {
-      // If we can't get raw body, return empty
-      console.warn('Cannot parse multipart: raw body not available');
+    // Try different ways to get the raw body
+    // 1. Check for rawBody property (might be set by middleware)
+    if ((req as any).rawBody) {
+      rawBody = Buffer.isBuffer((req as any).rawBody) 
+        ? (req as any).rawBody 
+        : Buffer.from((req as any).rawBody);
+    } 
+    // 2. Check if body is already a buffer
+    else if (Buffer.isBuffer(req.body)) {
+      rawBody = req.body;
+    } 
+    // 3. Check if body is a string (base64 or binary)
+    else if (typeof req.body === 'string') {
+      // Try to decode as base64 first (Vercel might encode it)
+      try {
+        rawBody = Buffer.from(req.body, 'base64');
+      } catch {
+        // If not base64, try binary
+        rawBody = Buffer.from(req.body, 'binary');
+      }
+    }
+    // 4. Check if body is an object with data (unlikely but possible)
+    else if (req.body && typeof req.body === 'object' && (req.body as any).data) {
+      rawBody = Buffer.from((req.body as any).data);
+    }
+
+    if (!rawBody || rawBody.length === 0) {
+      console.warn('Cannot parse multipart: raw body not available', {
+        bodyType: typeof req.body,
+        bodyIsBuffer: Buffer.isBuffer(req.body),
+        hasRawBody: !!(req as any).rawBody,
+      });
       resolve({ body: {} });
       return;
     }
 
     const body: any = {};
     let file: any = null;
+    let hasError = false;
 
-    // Parse multipart data
-    const boundaryStr = `--${boundary}`;
-    const endBoundaryStr = `--${boundary}--`;
-    const boundaryBuf = Buffer.from(boundaryStr);
-    const endBoundaryBuf = Buffer.from(endBoundaryStr);
+    // Create a readable stream from the buffer for busboy
+    const stream = Readable.from(rawBody);
+
+    const busboy = Busboy({ headers: req.headers });
     
-    let start = 0;
-    while (true) {
-      const boundaryIndex = bodyBuffer.indexOf(boundaryBuf, start);
-      if (boundaryIndex === -1) break;
+    busboy.on('file', (fieldname, fileStream, info) => {
+      const { filename, encoding, mimeType } = info;
+      const chunks: Buffer[] = [];
       
-      const partStart = boundaryIndex + boundaryBuf.length;
-      const nextBoundaryIndex = bodyBuffer.indexOf(boundaryBuf, partStart);
-      const endBoundaryIndex = bodyBuffer.indexOf(endBoundaryBuf, partStart);
-      
-      let partEnd: number;
-      if (endBoundaryIndex !== -1 && (nextBoundaryIndex === -1 || endBoundaryIndex < nextBoundaryIndex)) {
-        // Last part
-        partEnd = endBoundaryIndex;
-      } else if (nextBoundaryIndex !== -1) {
-        partEnd = nextBoundaryIndex;
-      } else {
-        break;
-      }
-      
-      const partData = bodyBuffer.slice(partStart, partEnd);
-      parsePart(partData, body, file ? null : (f => file = f));
-      
-      if (endBoundaryIndex !== -1 && endBoundaryIndex < nextBoundaryIndex) {
-        break; // Reached end
-      }
-      
-      start = nextBoundaryIndex;
-    }
-
-    resolve({ body, file });
-  });
-}
-
-function parsePart(partData: Buffer, body: any, setFile: ((f: any) => void) | null) {
-  // Find header/content separator
-  const separator = Buffer.from('\r\n\r\n');
-  const headerEnd = partData.indexOf(separator);
-  if (headerEnd === -1) {
-    // Try with just \n\n
-    const altSeparator = Buffer.from('\n\n');
-    const altHeaderEnd = partData.indexOf(altSeparator);
-    if (altHeaderEnd === -1) return;
-    return parsePartContent(partData, altHeaderEnd, 2, body, setFile);
-  }
-  
-  return parsePartContent(partData, headerEnd, 4, body, setFile);
-}
-
-function parsePartContent(partData: Buffer, headerEnd: number, separatorLen: number, body: any, setFile: ((f: any) => void) | null) {
-  const headers = partData.slice(0, headerEnd).toString('utf-8');
-  let content = partData.slice(headerEnd + separatorLen);
-
-  // Remove trailing \r\n or \n
-  while (content.length > 0 && (content[content.length - 1] === 10 || content[content.length - 1] === 13)) {
-    content = content.slice(0, -1);
-  }
-
-  const contentDispositionMatch = headers.match(/Content-Disposition:\s*form-data;\s*name="([^"]+)"(?:;\s*filename="([^"]+)")?/i);
-  if (!contentDispositionMatch) return;
-
-  const fieldName = contentDispositionMatch[1];
-  const filename = contentDispositionMatch[2];
-
-  const contentTypeMatch = headers.match(/Content-Type:\s*([^\r\n]+)/i);
-
-  if (filename) {
-    // It's a file
-    if (setFile) {
-      setFile({
-        fieldname: fieldName,
-        originalname: filename,
-        encoding: '7bit',
-        mimetype: contentTypeMatch ? contentTypeMatch[1].trim() : 'application/octet-stream',
-        buffer: content,
-        size: content.length,
+      fileStream.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
       });
-    }
-  } else {
-    // It's a regular field
-    body[fieldName] = content.toString('utf-8');
-  }
+      
+      fileStream.on('end', () => {
+        if (!file) {
+          file = {
+            fieldname,
+            originalname: filename,
+            encoding,
+            mimetype: mimeType || 'application/octet-stream',
+            buffer: Buffer.concat(chunks),
+            size: Buffer.concat(chunks).length,
+          };
+        }
+      });
+      
+      fileStream.on('error', (err: Error) => {
+        console.error('File stream error:', err);
+        hasError = true;
+        reject(err);
+      });
+    });
+    
+    busboy.on('field', (fieldname, value) => {
+      body[fieldname] = value;
+    });
+    
+    busboy.on('finish', () => {
+      if (!hasError) {
+        resolve({ body, file });
+      }
+    });
+    
+    busboy.on('error', (err: Error) => {
+      console.error('Busboy error:', err);
+      hasError = true;
+      reject(err);
+    });
+
+    // Pipe the stream to busboy
+    stream.pipe(busboy);
+  });
 }
 
 // Export as Vercel serverless function
@@ -252,10 +232,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let parsedFile: any = undefined;
   
   if (req.method === 'POST' && (path.includes('/upload-avatar'))) {
+    // Log what we're receiving for debugging
+    console.log('Upload request details:', {
+      contentType: req.headers['content-type'],
+      bodyType: typeof req.body,
+      bodyIsBuffer: Buffer.isBuffer(req.body),
+      hasRawBody: !!(req as any).rawBody,
+      bodyLength: req.body ? (Buffer.isBuffer(req.body) ? req.body.length : String(req.body).length) : 0,
+    });
+    
     try {
       const parsed = await parseMultipartFormData(req);
       parsedBody = parsed.body;
       parsedFile = parsed.file;
+      console.log('Parsed result:', { hasFile: !!parsedFile, bodyKeys: Object.keys(parsedBody) });
     } catch (error) {
       console.error('Error parsing multipart:', error);
     }
@@ -356,4 +346,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   });
 }
+
 
