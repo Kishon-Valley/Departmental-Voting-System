@@ -1,11 +1,11 @@
-import { supabase } from "./db";
-import {
-  type User,
-  type InsertUser,
-  type Student,
-  type InsertStudent,
+import { supabase } from "./db.js";
+import type {
+  User,
+  InsertUser,
+  Student,
+  InsertStudent,
 } from "@shared/schema";
-import { hashPassword } from "./utils/password";
+import { hashPassword } from "./utils/password.js";
 
 // Helper to map database row (snake_case) to TypeScript type (camelCase)
 function mapStudentRow(row: any): Student {

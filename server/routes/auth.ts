@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import passport from "../auth/passport.js";
-import { loginStudentSchema } from "@shared/schema";
+import { loginStudentSchema } from "../../shared/schema.js";
 import { storage } from "../storage.js";
 import { z } from "zod";
 
