@@ -22,6 +22,7 @@ import {
 import { User, Edit2, Check, X, UserCircle, Mail, GraduationCap, Hash, Shield, AlertCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 
 interface StudentConfirmationModalProps {
   user: {
@@ -135,24 +136,79 @@ export default function StudentConfirmationModal({
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('avatar', file);
-
-      const response = await fetch('/api/auth/upload-avatar', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include', // Include cookies for session
+      // First, verify user is authenticated by getting user ID
+      const userResponse = await fetch('/api/auth/me', {
+        credentials: 'include',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
-        throw new Error(errorData.message || 'Failed to upload image');
+      if (!userResponse.ok) {
+        throw new Error('Authentication required');
       }
 
-      const data = await response.json();
-      
+      const userData = await userResponse.json();
+      const userId = userData.user?.id;
+
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
+
+      // If Supabase client is not available, fall back to server upload
+      if (!supabase) {
+        // Fallback: try server upload with base64
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          try {
+            const base64 = reader.result as string;
+            const response = await apiRequest('POST', '/api/auth/upload-avatar-base64', {
+              file: base64,
+              filename: file.name,
+              mimeType: file.type,
+            });
+            const data = await response.json();
+            setFormData(prev => ({ ...prev, profilePicture: data.url }));
+            toast({
+              title: "Image uploaded",
+              description: "Your profile picture has been uploaded successfully.",
+            });
+          } catch (error) {
+            const err = error as Error;
+            toast({
+              title: "Upload Failed",
+              description: err.message || "Failed to upload image. Please try again.",
+              variant: "destructive",
+            });
+            setPreviewImage(null);
+          } finally {
+            setIsUploading(false);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // Upload directly to Supabase Storage
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('student-avatars')
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || 'Failed to upload to storage');
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('student-avatars')
+        .getPublicUrl(filePath);
+
       // Update form data with new URL
-      setFormData(prev => ({ ...prev, profilePicture: data.url }));
+      setFormData(prev => ({ ...prev, profilePicture: urlData.publicUrl }));
       
       toast({
         title: "Image uploaded",

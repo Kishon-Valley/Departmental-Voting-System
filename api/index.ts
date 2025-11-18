@@ -4,7 +4,7 @@ import express from "express";
 import cookieSession from "cookie-session";
 import passport from "../server/auth/passport.js";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
-import { uploadAvatarRoute } from "../server/routes/upload.js";
+import { uploadAvatarRoute, uploadAvatarBase64Route } from "../server/routes/upload.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
 
@@ -91,9 +91,12 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/auth/me", meRoute);
   app.put("/auth/profile", updateProfileRoute);
   app.put("/api/auth/profile", updateProfileRoute);
-  // File upload routes - handled separately in Vercel handler
+  // File upload routes
   app.post("/auth/upload-avatar", uploadAvatarRoute);
   app.post("/api/auth/upload-avatar", uploadAvatarRoute);
+  // Base64 upload route (for Vercel compatibility)
+  app.post("/auth/upload-avatar-base64", uploadAvatarBase64Route);
+  app.post("/api/auth/upload-avatar-base64", uploadAvatarBase64Route);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
