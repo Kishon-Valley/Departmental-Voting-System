@@ -15,8 +15,17 @@ async function getApp(): Promise<express.Application> {
   app = express();
 
   // Body parsing middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: false }));
+  // Note: In Vercel serverless functions, the body is already parsed by the platform
+  // So we skip Express body parsers to avoid stream-related errors
+  // The body will be available directly from req.body
+  app.use((req, res, next) => {
+    // Vercel already parses JSON and URL-encoded bodies
+    // We just need to ensure req.body exists (it should already be set by Vercel)
+    if (req.body === undefined) {
+      req.body = {};
+    }
+    next();
+  });
 
   // Cookie-session configuration
   app.use(
