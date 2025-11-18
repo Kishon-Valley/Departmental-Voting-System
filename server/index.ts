@@ -35,6 +35,22 @@ app.use(
 );
 
 // Initialize Passport and restore authentication state from session
+// Patch cookie-session object so Passport can call req.session.regenerate/destroy
+app.use((req, _res, next) => {
+  if (req.session && typeof (req.session as any).regenerate !== 'function') {
+    (req.session as any).regenerate = (cb?: (err?: any) => void) => {
+      cb?.();
+    };
+  }
+  if (req.session && typeof (req.session as any).destroy !== 'function') {
+    (req.session as any).destroy = (cb?: (err?: any) => void) => {
+      req.session = null as any;
+      cb?.();
+    };
+  }
+  next();
+});
+
 app.use(passport.initialize());
 app.use(passport.session());
 

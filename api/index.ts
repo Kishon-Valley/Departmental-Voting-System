@@ -31,6 +31,20 @@ async function getApp(): Promise<express.Application> {
   );
 
   // Initialize Passport
+  // Patch cookie-session so Passport can call req.session.regenerate/destroy
+  app.use((req, _res, next) => {
+    if (req.session && typeof (req.session as any).regenerate !== 'function') {
+      (req.session as any).regenerate = (cb?: (err?: any) => void) => cb?.();
+    }
+    if (req.session && typeof (req.session as any).destroy !== 'function') {
+      (req.session as any).destroy = (cb?: (err?: any) => void) => {
+        req.session = null as any;
+        cb?.();
+      };
+    }
+    next();
+  });
+
   app.use(passport.initialize());
   app.use(passport.session());
 
