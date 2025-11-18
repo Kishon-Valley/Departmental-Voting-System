@@ -106,42 +106,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
   
   // Extract the path from Vercel's request
-  // When using rewrites, req.url contains the full path including /api
   let path = req.url || '';
   
-  // Vercel rewrite pattern: /api/(.*) -> /api/index.js
-  // The original path should be in req.url
-  // If it starts with /api, we can keep it or strip it (routes handle both)
+  // Parse cookies from headers if not already parsed by Vercel
+  let cookies: Record<string, string> = {};
+  if (req.cookies) {
+    cookies = req.cookies;
+  } else if (req.headers.cookie) {
+    req.headers.cookie.split(';').forEach((cookie: string) => {
+      const parts = cookie.trim().split('=');
+      if (parts.length === 2) {
+        cookies[parts[0]] = decodeURIComponent(parts[1]);
+      }
+    });
+  }
   
-  // Create a proper Express-compatible request object
-  const expressReq = {
-    ...req,
-    method: req.method,
+  // Create Express-compatible request object
+  // We need to create a proper object that Express middleware can modify
+  const expressReq: any = {
+    method: req.method || 'GET',
     url: path,
     originalUrl: path,
-    path: path.split('?')[0], // Remove query string
+    path: path.split('?')[0],
     query: req.query || {},
     body: req.body,
     headers: req.headers,
-    cookies: req.cookies,
-    ip: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown',
+    cookies: cookies,
+    ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'unknown',
     protocol: req.headers['x-forwarded-proto'] || 'https',
-    hostname: req.headers.host,
-    get: (name: string) => req.headers[name.toLowerCase()],
-    header: (name: string) => req.headers[name.toLowerCase()],
-    isAuthenticated: () => {
-      return !!(req as any).user;
+    hostname: req.headers.host?.split(':')[0] || 'unknown',
+    get: function(name: string) {
+      return this.headers[name.toLowerCase()];
     },
-    user: (req as any).user,
-    logIn: (req as any).logIn,
-    logOut: (req as any).logOut,
-    login: (req as any).login,
-    logout: (req as any).logout,
+    header: function(name: string) {
+      return this.headers[name.toLowerCase()];
+    },
+    // These will be set by Passport middleware
+    isAuthenticated: function() {
+      return !!this.user;
+    },
+    // Session will be set by cookie-session middleware
+    session: undefined,
+    // User will be set by Passport
+    user: undefined,
+    // Passport methods - these will be added by passport.initialize()
+    logIn: undefined,
+    logOut: undefined,
+    login: undefined,
+    logout: undefined,
+  };
+  
+  // Create Express-compatible response object
+  let statusCode = 200;
+  const expressRes = {
+    ...res,
+    statusCode: statusCode,
+    status: function(code: number) {
+      statusCode = code;
+      res.statusCode = code;
+      return this;
+    },
+    json: function(body: any) {
+      res.setHeader('Content-Type', 'application/json');
+      res.statusCode = statusCode;
+      res.end(JSON.stringify(body));
+      return this;
+    },
+    end: function(chunk?: any) {
+      res.statusCode = statusCode;
+      if (chunk) {
+        res.end(chunk);
+      } else {
+        res.end();
+      }
+      return this;
+    },
+    setHeader: function(name: string, value: string | string[]) {
+      res.setHeader(name, value);
+      return this;
+    },
+    getHeader: function(name: string) {
+      return res.getHeader(name);
+    },
   } as any;
   
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
-    expressApp(expressReq, res as any, (err?: any) => {
+    expressApp(expressReq, expressRes, (err?: any) => {
       if (err) {
         console.error('Express error:', err);
         reject(err);
