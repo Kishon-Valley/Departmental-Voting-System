@@ -1,8 +1,8 @@
-import "../env";
+import "../env.js";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "./routes/auth";
-import { uploadAvatarRoute, uploadMiddleware } from "./routes/upload";
+import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "./routes/auth.js";
+import { uploadAvatarRoute, uploadMiddleware } from "./routes/upload.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes

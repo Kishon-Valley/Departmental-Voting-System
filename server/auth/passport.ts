@@ -1,7 +1,7 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { storage } from "../storage";
-import { comparePassword } from "../utils/password";
+import { storage } from "../storage.js";
+import { comparePassword } from "../utils/password.js";
 
 // Configure Passport Local Strategy for student login
 passport.use(

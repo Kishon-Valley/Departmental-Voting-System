@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
-import passport from "../auth/passport";
+import passport from "../auth/passport.js";
 import { loginStudentSchema } from "@shared/schema";
-import { storage } from "../storage";
+import { storage } from "../storage.js";
 import { z } from "zod";
 
 // Type augmentation for Express Request with user
