@@ -31,16 +31,21 @@ async function getApp(): Promise<express.Application> {
   );
 
   // Initialize Passport
-  // Patch cookie-session so Passport can call req.session.regenerate/destroy
+  // Patch cookie-session so Passport can call req.session.regenerate/destroy/save
   app.use((req, _res, next) => {
     if (req.session && typeof (req.session as any).regenerate !== 'function') {
-      (req.session as any).regenerate = (cb?: (err?: any) => void) => cb?.();
+      (req.session as any).regenerate = (cb?: (err?: any) => void) => {
+        cb?.();
+      };
     }
     if (req.session && typeof (req.session as any).destroy !== 'function') {
       (req.session as any).destroy = (cb?: (err?: any) => void) => {
         req.session = null as any;
         cb?.();
       };
+    }
+    if (req.session && typeof (req.session as any).save !== 'function') {
+      (req.session as any).save = (cb?: (err?: any) => void) => cb?.();
     }
     next();
   });
