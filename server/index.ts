@@ -1,7 +1,7 @@
 import "../env.js";
 
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
+import cookieSession from "cookie-session";
 import passport from "./auth/passport.js";
 import { registerRoutes } from "./routes.js";
 import { setupVite, serveStatic, log } from "./vite.js";
@@ -22,18 +22,15 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
-// Session configuration
+// Cookie-session configuration (stateless, works across lambda instances)
 app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production", // HTTPS only in production
-      httpOnly: true, // Prevents XSS attacks
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: "lax",
-    },
+  cookieSession({
+    name: "session",
+    keys: [process.env.SESSION_SECRET || "change-me"],
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
   }),
 );
 

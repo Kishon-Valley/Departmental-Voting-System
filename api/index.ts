@@ -1,7 +1,7 @@
 // Vercel serverless function for API routes
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express from "express";
-import session from "express-session";
+import cookieSession from "cookie-session";
 import passport from "../server/auth/passport.js";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
 import { uploadAvatarRoute, uploadMiddleware } from "../server/routes/upload.js";
@@ -18,18 +18,15 @@ async function getApp(): Promise<express.Application> {
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
-  // Session configuration
+  // Cookie-session configuration
   app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: true,
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000,
-        sameSite: "lax",
-      },
+    cookieSession({
+      name: "session",
+      keys: [process.env.SESSION_SECRET || "change-me"],
+      maxAge: 24 * 60 * 60 * 1000,
+      secure: true,
+      httpOnly: true,
+      sameSite: "lax",
     }),
   );
 
