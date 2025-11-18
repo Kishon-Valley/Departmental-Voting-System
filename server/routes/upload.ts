@@ -1,6 +1,23 @@
 import type { Request, Response } from "express";
 import multer from "multer";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "../db.js";
+
+// Create Supabase client with service role key for storage operations
+// This bypasses RLS policies for server-side uploads
+const getStorageClient = () => {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceRoleKey && process.env.SUPABASE_URL) {
+    return createClient(process.env.SUPABASE_URL, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+  // Fallback to regular client if service role key not available
+  return supabase;
+};
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -44,8 +61,9 @@ export async function uploadAvatarRoute(req: Request, res: Response) {
     const fileName = `${userId}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Upload to Supabase Storage using service role client (bypasses RLS)
+    const storageClient = getStorageClient();
+    const { data: uploadData, error: uploadError } = await storageClient.storage
       .from('student-avatars')
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
@@ -156,8 +174,9 @@ export async function uploadAvatarBase64Route(req: Request, res: Response) {
     const fileName = `${userId}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Upload to Supabase Storage using service role client (bypasses RLS)
+    const storageClient = getStorageClient();
+    const { data: uploadData, error: uploadError } = await storageClient.storage
       .from('student-avatars')
       .upload(filePath, fileBuffer, {
         contentType: contentType,
