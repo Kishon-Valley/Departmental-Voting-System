@@ -88,10 +88,24 @@ export async function uploadAvatarBase64Route(req: Request, res: Response) {
   }
 
   try {
-    const { file, filename, mimeType } = req.body;
+    // Log request body for debugging
+    console.log('Base64 upload request:', {
+      bodyType: typeof req.body,
+      bodyKeys: req.body ? Object.keys(req.body) : [],
+      hasFile: !!(req.body as any)?.file,
+    });
 
-    if (!file) {
-      return res.status(400).json({ message: "No file data provided" });
+    const { file, filename, mimeType } = req.body || {};
+
+    if (!file || typeof file !== 'string') {
+      return res.status(400).json({ 
+        message: "No file data provided",
+        received: { 
+          hasFile: !!file, 
+          fileType: typeof file,
+          bodyType: typeof req.body 
+        }
+      });
     }
 
     // Validate file type
@@ -105,12 +119,27 @@ export async function uploadAvatarBase64Route(req: Request, res: Response) {
 
     // Convert base64 to buffer
     let fileBuffer: Buffer;
-    if (file.startsWith('data:')) {
-      // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
-      const base64Data = file.split(',')[1];
-      fileBuffer = Buffer.from(base64Data, 'base64');
-    } else {
-      fileBuffer = Buffer.from(file, 'base64');
+    try {
+      if (file.startsWith('data:')) {
+        // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
+        const base64Data = file.split(',')[1];
+        if (!base64Data) {
+          throw new Error('Invalid base64 data URL format');
+        }
+        fileBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        fileBuffer = Buffer.from(file, 'base64');
+      }
+      
+      if (fileBuffer.length === 0) {
+        throw new Error('Decoded file buffer is empty');
+      }
+    } catch (bufferError) {
+      console.error('Error converting base64 to buffer:', bufferError);
+      return res.status(400).json({
+        message: "Invalid file data format",
+        error: bufferError instanceof Error ? bufferError.message : "Failed to decode base64",
+      });
     }
 
     // Validate file size (5MB)

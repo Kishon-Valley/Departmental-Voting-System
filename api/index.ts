@@ -231,10 +231,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let path = req.url || '';
   
   // Handle file uploads for multipart/form-data
-  let parsedBody = req.body;
+  let parsedBody = req.body || {};
   let parsedFile: any = undefined;
   
-  if (req.method === 'POST' && (path.includes('/upload-avatar'))) {
+  if (req.method === 'POST' && (path.includes('/upload-avatar') && !path.includes('base64'))) {
     // Log what we're receiving for debugging
     console.log('Upload request details:', {
       contentType: req.headers['content-type'],
@@ -267,6 +267,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
   
+  // Ensure body is parsed for JSON requests (Vercel should do this, but ensure it's there)
+  let finalBody = parsedBody || {};
+  if ((req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') && req.body) {
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body) && !Array.isArray(req.body)) {
+      finalBody = req.body;
+    } else if (typeof req.body === 'string') {
+      try {
+        finalBody = JSON.parse(req.body);
+      } catch {
+        // Not JSON, keep as is or use parsedBody
+        finalBody = parsedBody || {};
+      }
+    } else {
+      finalBody = parsedBody || {};
+    }
+  }
+
   // Create Express-compatible request object
   // We need to create a proper object that Express middleware can modify
   const expressReq: any = {
@@ -275,7 +292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     originalUrl: path,
     path: path.split('?')[0],
     query: req.query || {},
-    body: parsedBody,
+    body: finalBody,
     file: parsedFile, // Attach parsed file for multer compatibility
     headers: req.headers,
     cookies: cookies,
