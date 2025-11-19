@@ -19,7 +19,7 @@ import {
   CarouselPrevious,
   type CarouselApi,
 } from "@/components/ui/carousel";
-import { User, Edit2, Check, X, UserCircle, Mail, GraduationCap, Hash, Shield, AlertCircle, Upload, Image as ImageIcon } from "lucide-react";
+import { User, Edit2, Check, X, UserCircle, Mail, GraduationCap, Shield, AlertCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { supabase } from "@/lib/supabase";
@@ -354,10 +354,6 @@ export default function StudentConfirmationModal({
             </div>
             <div className="text-center space-y-2">
               <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">{user.fullName}</h3>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                <Hash className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                <p className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-300">{user.indexNumber}</p>
-              </div>
               {isEditing && (
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 px-4 py-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
                   💡 Click the upload icon above to change your profile picture
