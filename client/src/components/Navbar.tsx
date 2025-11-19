@@ -48,10 +48,12 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated && user ? (
               <>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span className="max-w-[150px] truncate">{user.fullName}</span>
-                </div>
+                <Button asChild variant="ghost" size="sm" data-testid="button-profile">
+                  <Link href="/profile" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span className="max-w-[150px] truncate">{user.fullName}</span>
+                  </Link>
+                </Button>
                 <Button asChild size="sm" data-testid="button-vote-now">
                   <Link href="/vote">Vote Now</Link>
                 </Button>
@@ -106,10 +108,12 @@ export default function Navbar() {
             <div className="flex flex-col gap-2 px-3 pt-3 border-t">
               {isAuthenticated && user ? (
                 <>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground px-3 py-2">
-                    <User className="h-4 w-4" />
-                    <span className="truncate">{user.fullName}</span>
-                  </div>
+                  <Button asChild variant="outline" className="w-full" data-testid="button-mobile-profile">
+                    <Link href="/profile" className="flex items-center justify-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="truncate">{user.fullName}</span>
+                    </Link>
+                  </Button>
                   <Button asChild className="w-full" data-testid="button-mobile-vote">
                     <Link href="/vote">Vote Now</Link>
                   </Button>

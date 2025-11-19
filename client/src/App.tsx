@@ -13,6 +13,7 @@ import Vote from "@/pages/Vote";
 import Results from "@/pages/Results";
 import Contact from "@/pages/Contact";
 import Login from "@/pages/Login";
+import Profile from "@/pages/Profile";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminElections from "@/pages/admin/AdminElections";
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/results" component={Results} />
       <Route path="/contact" component={Contact} />
       <Route path="/login" component={Login} />
+      <Route path="/profile" component={Profile} />
       {/* Admin routes */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />

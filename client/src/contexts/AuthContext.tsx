@@ -55,9 +55,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: (data) => {
-      // Show confirmation modal with user data instead of redirecting
-      setPendingUser(data.user);
-      setShowConfirmationModal(true);
+      // Only show confirmation modal on first login (when email and year are both null/empty)
+      const isFirstLogin = !data.user.email && !data.user.year;
+      if (isFirstLogin) {
+        setPendingUser(data.user);
+        setShowConfirmationModal(true);
+      } else {
+        // User has already confirmed, redirect to home
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        setLocation("/");
+      }
     },
   });
 
