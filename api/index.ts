@@ -427,6 +427,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   // Create Express-compatible response object
   let statusCode = 200;
+  const responseHeaders: Record<string, string | string[]> = {};
+  
   const expressRes = {
     ...res,
     statusCode: statusCode,
@@ -436,12 +438,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return this;
     },
     json: function(body: any) {
+      // Set all collected headers before sending response
+      Object.entries(responseHeaders).forEach(([name, value]) => {
+        res.setHeader(name, value);
+      });
       res.setHeader('Content-Type', 'application/json');
       res.statusCode = statusCode;
       res.end(JSON.stringify(body));
       return this;
     },
     end: function(chunk?: any) {
+      // Set all collected headers before sending response
+      Object.entries(responseHeaders).forEach(([name, value]) => {
+        res.setHeader(name, value);
+      });
       res.statusCode = statusCode;
       if (chunk) {
         res.end(chunk);
@@ -451,11 +461,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return this;
     },
     setHeader: function(name: string, value: string | string[]) {
+      // Store headers so they can be set when response is sent
+      responseHeaders[name.toLowerCase()] = value;
       res.setHeader(name, value);
       return this;
     },
     getHeader: function(name: string) {
-      return res.getHeader(name);
+      return res.getHeader(name) || responseHeaders[name.toLowerCase()];
+    },
+    cookie: function(name: string, value: string, options?: any) {
+      // Handle cookie setting (used by cookie-session)
+      const cookieOptions = options || {};
+      let cookieString = `${name}=${value}`;
+      
+      if (cookieOptions.maxAge) {
+        cookieString += `; Max-Age=${cookieOptions.maxAge}`;
+      }
+      if (cookieOptions.domain) {
+        cookieString += `; Domain=${cookieOptions.domain}`;
+      }
+      if (cookieOptions.path) {
+        cookieString += `; Path=${cookieOptions.path}`;
+      }
+      if (cookieOptions.secure) {
+        cookieString += `; Secure`;
+      }
+      if (cookieOptions.httpOnly) {
+        cookieString += `; HttpOnly`;
+      }
+      if (cookieOptions.sameSite) {
+        cookieString += `; SameSite=${cookieOptions.sameSite}`;
+      }
+      
+      // Append to existing Set-Cookie header or create new one
+      const existing = responseHeaders['set-cookie'] || [];
+      const cookies = Array.isArray(existing) ? [...existing, cookieString] : [cookieString];
+      responseHeaders['set-cookie'] = cookies;
+      res.setHeader('Set-Cookie', cookies);
+      return this;
     },
   } as any;
   

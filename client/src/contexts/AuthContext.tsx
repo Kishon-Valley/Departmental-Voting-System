@@ -54,16 +54,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Only show confirmation modal on first login (when email and year are both null/empty)
       const isFirstLogin = !data.user.email && !data.user.year;
       if (isFirstLogin) {
         setPendingUser(data.user);
         setShowConfirmationModal(true);
       } else {
-        // User has already confirmed, redirect to home
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        setLocation("/");
+        // User has already confirmed, wait for auth state to update before redirecting
+        // This ensures the session cookie is properly set, especially in serverless environments
+        try {
+          // Wait for the auth query to refetch and confirm authentication
+          await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
+          // Additional delay to ensure cookie propagation in serverless environments like Vercel
+          await new Promise(resolve => setTimeout(resolve, 200));
+          setLocation("/");
+        } catch (error) {
+          // If refetch fails, still try to redirect (user might still be authenticated)
+          console.error("Error refetching auth state:", error);
+          setTimeout(() => {
+            setLocation("/");
+          }, 200);
+        }
       }
     },
   });
@@ -91,9 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logoutMutation.mutateAsync();
   };
 
-  const confirmAndProceed = () => {
+  const confirmAndProceed = async () => {
     // Refetch user data and proceed to home
-    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    try {
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
+      // Additional delay to ensure cookie propagation in serverless environments like Vercel
+      await new Promise(resolve => setTimeout(resolve, 200));
+    } catch (error) {
+      console.error("Error refetching auth state:", error);
+    }
     setShowConfirmationModal(false);
     setPendingUser(null);
     setLocation("/");
