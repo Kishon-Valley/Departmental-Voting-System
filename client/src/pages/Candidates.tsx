@@ -1,74 +1,61 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CandidateCard from "@/components/CandidateCard";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
-import candidate1 from "@assets/images/Male_candidate_headshot_1_42ad3b40.png";
-import candidate2 from "@assets/images/Female_candidate_headshot_1_cd2490c7.png";
-import candidate3 from "@assets/images/Male_candidate_headshot_2_837b20e2.png";
-import candidate4 from "@assets/images/Female_candidate_headshot_2_b501a633.png";
-import candidate5 from "@assets/images/Male_candidate_headshot_3_437e45ec.png";
-import candidate6 from "@assets/images/Female_candidate_headshot_3_55573e1d.png";
+import { Search, Loader2, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Candidates() {
   const [selectedPosition, setSelectedPosition] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const candidates = [
-    {
-      id: "1",
-      name: "Emmanuel Asante",
-      position: "President",
-      photoUrl: candidate1,
-      manifestoSnippet: "Committed to advancing laboratory excellence, improving research facilities, and fostering innovation in medical laboratory science.",
-    },
-    {
-      id: "2",
-      name: "Priscilla Osei",
-      position: "President",
-      photoUrl: candidate2,
-      manifestoSnippet: "Focused on bridging theory and practice, enhancing clinical training opportunities, and promoting professional development.",
-    },
-    {
-      id: "3",
-      name: "Samuel Boateng",
-      position: "Vice President",
-      photoUrl: candidate3,
-      manifestoSnippet: "Dedicated to improving laboratory safety standards, modernizing equipment, and strengthening industry partnerships.",
-    },
-    {
-      id: "4",
-      name: "Grace Mensah",
-      position: "Vice President",
-      photoUrl: candidate4,
-      manifestoSnippet: "Passionate about quality assurance in laboratory practices and creating pathways for research collaboration.",
-    },
-    {
-      id: "5",
-      name: "Daniel Oppong",
-      position: "Secretary",
-      photoUrl: candidate5,
-      manifestoSnippet: "Organized and detail-oriented, committed to maintaining accurate records and facilitating clear communication.",
-    },
-    {
-      id: "6",
-      name: "Mercy Adjei",
-      position: "Treasurer",
-      photoUrl: candidate6,
-      manifestoSnippet: "Financial accountability and transparent budget management for laboratory resources and student activities.",
-    },
-  ];
-
-  const positions = ["all", ...Array.from(new Set(candidates.map((c) => c.position)))];
-
-  const filteredCandidates = candidates.filter((candidate) => {
-    const matchesPosition = selectedPosition === "all" || candidate.position === selectedPosition;
-    const matchesSearch = candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidate.manifestoSnippet.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesPosition && matchesSearch;
+  // Fetch candidates
+  const { data: candidatesData, isLoading: candidatesLoading, error: candidatesError } = useQuery<{ candidates: Array<{ id: string; positionId: string; name: string; photoUrl: string | null; manifesto: string | null; bio: string | null }> }>({
+    queryKey: ["/api/candidates"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
   });
+
+  // Fetch positions
+  const { data: positionsData, isLoading: positionsLoading } = useQuery<{ positions: Array<{ id: string; title: string; description: string | null; order: number }> }>({
+    queryKey: ["/api/positions"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+
+  const isLoading = candidatesLoading || positionsLoading;
+  const error = candidatesError;
+
+  // Combine candidates with position titles
+  const candidates = useMemo(() => {
+    if (!candidatesData?.candidates || !positionsData?.positions) return [];
+    
+    return candidatesData.candidates.map((candidate) => {
+      const position = positionsData.positions.find((p) => p.id === candidate.positionId);
+      return {
+        id: candidate.id,
+        name: candidate.name,
+        position: position?.title || "Unknown Position",
+        photoUrl: candidate.photoUrl || "/placeholder-avatar.png",
+        manifestoSnippet: candidate.manifesto || candidate.bio || "No manifesto available.",
+      };
+    });
+  }, [candidatesData, positionsData]);
+
+  const positions = useMemo(() => {
+    return ["all", ...Array.from(new Set(candidates.map((c) => c.position)))];
+  }, [candidates]);
+
+  const filteredCandidates = useMemo(() => {
+    return candidates.filter((candidate) => {
+      const matchesPosition = selectedPosition === "all" || candidate.position === selectedPosition;
+      const matchesSearch = candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        candidate.manifestoSnippet.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesPosition && matchesSearch;
+    });
+  }, [candidates, selectedPosition, searchQuery]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -110,7 +97,28 @@ export default function Candidates() {
             </Select>
           </div>
 
-          {filteredCandidates.length > 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading candidates...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <Card className="border-destructive">
+              <CardHeader>
+                <div className="inline-flex items-center gap-2 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                  <CardTitle>Error Loading Candidates</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  {error instanceof Error ? error.message : "Failed to load candidates. Please try again later."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : filteredCandidates.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCandidates.map((candidate) => (
                 <CandidateCard key={candidate.id} {...candidate} />

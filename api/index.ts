@@ -5,6 +5,12 @@ import cookieSession from "cookie-session";
 import passport from "../server/auth/passport.js";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
 import { uploadAvatarRoute, uploadAvatarBase64Route } from "../server/routes/upload.js";
+import { getCandidatesRoute, getCandidateByIdRoute, getCandidatesByPositionRoute } from "../server/routes/candidates.js";
+import { getPositionsRoute, getPositionByIdRoute } from "../server/routes/positions.js";
+import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
+import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
+import { getElectionStatusRoute } from "../server/routes/election.js";
+import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute } from "../server/routes/admin.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
 
@@ -83,6 +89,8 @@ async function getApp(): Promise<express.Application> {
 
   // Register routes (without /api prefix - Vercel handles it)
   // Also register with /api prefix as fallback
+  
+  // Auth routes
   app.post("/auth/login", loginRoute);
   app.post("/api/auth/login", loginRoute);
   app.post("/auth/logout", logoutRoute);
@@ -97,6 +105,64 @@ async function getApp(): Promise<express.Application> {
   // Base64 upload route (for Vercel compatibility)
   app.post("/auth/upload-avatar-base64", uploadAvatarBase64Route);
   app.post("/api/auth/upload-avatar-base64", uploadAvatarBase64Route);
+
+  // Candidate routes
+  app.get("/candidates", getCandidatesRoute);
+  app.get("/api/candidates", getCandidatesRoute);
+  app.get("/candidates/position/:positionId", getCandidatesByPositionRoute);
+  app.get("/api/candidates/position/:positionId", getCandidatesByPositionRoute);
+  app.get("/candidates/:id", getCandidateByIdRoute);
+  app.get("/api/candidates/:id", getCandidateByIdRoute);
+
+  // Position routes
+  app.get("/positions", getPositionsRoute);
+  app.get("/api/positions", getPositionsRoute);
+  app.get("/positions/:id", getPositionByIdRoute);
+  app.get("/api/positions/:id", getPositionByIdRoute);
+
+  // Vote routes
+  app.post("/votes", submitVotesRoute);
+  app.post("/api/votes", submitVotesRoute);
+  app.get("/votes/my-votes", getMyVotesRoute);
+  app.get("/api/votes/my-votes", getMyVotesRoute);
+
+  // Results routes
+  app.get("/results", getResultsRoute);
+  app.get("/api/results", getResultsRoute);
+  app.get("/results/position/:positionId", getResultsByPositionRoute);
+  app.get("/api/results/position/:positionId", getResultsByPositionRoute);
+
+  // Election routes
+  app.get("/election/status", getElectionStatusRoute);
+  app.get("/api/election/status", getElectionStatusRoute);
+
+  // Admin routes
+  app.post("/admin/login", adminLoginRoute);
+  app.post("/api/admin/login", adminLoginRoute);
+  app.get("/admin/me", adminMeRoute);
+  app.get("/api/admin/me", adminMeRoute);
+  
+  // Protected admin routes
+  app.post("/admin/elections", requireAdmin, createElectionRoute);
+  app.post("/api/admin/elections", requireAdmin, createElectionRoute);
+  app.put("/admin/elections/:id/status", requireAdmin, updateElectionStatusRoute);
+  app.put("/api/admin/elections/:id/status", requireAdmin, updateElectionStatusRoute);
+  app.post("/admin/positions", requireAdmin, createPositionRoute);
+  app.post("/api/admin/positions", requireAdmin, createPositionRoute);
+  app.put("/admin/positions/:id", requireAdmin, updatePositionRoute);
+  app.put("/api/admin/positions/:id", requireAdmin, updatePositionRoute);
+  app.delete("/admin/positions/:id", requireAdmin, deletePositionRoute);
+  app.delete("/api/admin/positions/:id", requireAdmin, deletePositionRoute);
+  app.post("/admin/candidates", requireAdmin, createCandidateRoute);
+  app.post("/api/admin/candidates", requireAdmin, createCandidateRoute);
+  app.put("/admin/candidates/:id", requireAdmin, updateCandidateRoute);
+  app.put("/api/admin/candidates/:id", requireAdmin, updateCandidateRoute);
+  app.delete("/admin/candidates/:id", requireAdmin, deleteCandidateRoute);
+  app.delete("/api/admin/candidates/:id", requireAdmin, deleteCandidateRoute);
+  app.get("/admin/votes", requireAdmin, getAllVotesRoute);
+  app.get("/api/admin/votes", requireAdmin, getAllVotesRoute);
+  app.get("/admin/students", requireAdmin, getStudentsRoute);
+  app.get("/api/admin/students", requireAdmin, getStudentsRoute);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -296,9 +362,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     file: parsedFile, // Attach parsed file for multer compatibility
     headers: req.headers,
     cookies: cookies,
-    ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || 'unknown',
-    protocol: req.headers['x-forwarded-proto'] || 'https',
-    hostname: req.headers.host?.split(':')[0] || 'unknown',
+    ip: (() => {
+      const forwardedFor = req.headers['x-forwarded-for'];
+      if (typeof forwardedFor === 'string') {
+        return forwardedFor.split(',')[0]?.trim();
+      } else if (Array.isArray(forwardedFor)) {
+        return forwardedFor[0]?.trim();
+      }
+      const realIp = req.headers['x-real-ip'];
+      if (typeof realIp === 'string') {
+        return realIp;
+      } else if (Array.isArray(realIp)) {
+        return realIp[0];
+      }
+      return 'unknown';
+    })(),
+    protocol: (() => {
+      const proto = req.headers['x-forwarded-proto'];
+      if (typeof proto === 'string') {
+        return proto;
+      } else if (Array.isArray(proto)) {
+        return proto[0];
+      }
+      return 'https';
+    })(),
+    hostname: (() => {
+      const host = req.headers.host;
+      if (typeof host === 'string') {
+        return host.split(':')[0];
+      }
+      if (Array.isArray(host)) {
+        const firstHost = host[0];
+        if (firstHost) {
+          const hostStr = String(firstHost);
+          return hostStr.split(':')[0];
+        }
+      }
+      return 'unknown';
+    })(),
     get: function(name: string) {
       return this.headers[name.toLowerCase()];
     },

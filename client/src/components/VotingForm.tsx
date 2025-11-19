@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { Loader2 } from "lucide-react";
 
 interface Candidate {
   id: string;
@@ -26,13 +28,14 @@ interface VotingFormProps {
 export default function VotingForm({ positions, onSubmit }: VotingFormProps) {
   const [votes, setVotes] = useState<Record<string, string>>({});
   const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const currentPosition = positions[currentPositionIndex];
   const isLastPosition = currentPositionIndex === positions.length - 1;
   const hasVotedForCurrent = !!votes[currentPosition.id];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!hasVotedForCurrent) {
       toast({
         title: "Selection Required",
@@ -43,8 +46,31 @@ export default function VotingForm({ positions, onSubmit }: VotingFormProps) {
     }
 
     if (isLastPosition) {
-      console.log("Votes submitted:", votes);
-      onSubmit(votes);
+      // Submit votes to API
+      setIsSubmitting(true);
+      try {
+        const response = await apiRequest("POST", "/api/votes", { votes });
+        const data = await response.json();
+        
+        if (response.ok) {
+          toast({
+            title: "Votes Submitted Successfully",
+            description: "Your votes have been recorded securely.",
+          });
+          onSubmit(votes);
+        } else {
+          throw new Error(data.message || "Failed to submit votes");
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to submit votes. Please try again.";
+        toast({
+          title: "Submission Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
       setCurrentPositionIndex(currentPositionIndex + 1);
     }
@@ -105,16 +131,19 @@ export default function VotingForm({ positions, onSubmit }: VotingFormProps) {
                       <Label htmlFor={candidate.id} className="cursor-pointer">
                         <div className="flex items-center gap-3 mb-2">
                           <img
-                            src={candidate.photoUrl}
+                            src={candidate.photoUrl || "/placeholder-avatar.png"}
                             alt={candidate.name}
                             className="w-12 h-12 rounded-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/placeholder-avatar.png";
+                            }}
                           />
                           <h4 className="font-semibold" data-testid={`text-candidate-name-${candidate.id}`}>
                             {candidate.name}
                           </h4>
                         </div>
                         <p className="text-sm text-muted-foreground leading-relaxed" data-testid={`text-candidate-manifesto-${candidate.id}`}>
-                          {candidate.manifesto}
+                          {candidate.manifesto || "No manifesto available."}
                         </p>
                       </Label>
                     </div>
@@ -133,8 +162,21 @@ export default function VotingForm({ positions, onSubmit }: VotingFormProps) {
             >
               Previous
             </Button>
-            <Button onClick={handleNext} data-testid="button-next">
-              {isLastPosition ? "Submit Votes" : "Next Position"}
+            <Button 
+              onClick={handleNext} 
+              disabled={isSubmitting}
+              data-testid="button-next"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : isLastPosition ? (
+                "Submit Votes"
+              ) : (
+                "Next Position"
+              )}
             </Button>
           </div>
         </CardContent>

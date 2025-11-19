@@ -302,8 +302,7 @@ export default function StudentConfirmationModal({
                 <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border border-amber-200/60 dark:border-amber-800/60 shadow-sm">
                   <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
-                    <Edit2 className="h-3.5 w-3.5" />
-                    Editing Mode
+                    
                   </span>
                 </div>
               )}

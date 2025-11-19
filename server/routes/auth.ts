@@ -9,12 +9,14 @@ declare global {
   namespace Express {
     interface User {
       id: string;
-      indexNumber: string;
-      fullName: string;
+      indexNumber: string | undefined;
+      fullName: string | undefined;
+      username?: string;
       email?: string | null;
       year?: string | null;
       profilePicture?: string | null;
-      hasVoted: boolean;
+      hasVoted?: boolean;
+      type?: "admin" | "student";
     }
   }
 }
