@@ -130,6 +130,7 @@ export interface IStorage {
   getActiveElection(): Promise<Election | undefined>;
   createElection(election: InsertElection): Promise<Election>;
   updateElectionStatus(id: string, status: "upcoming" | "active" | "closed"): Promise<Election>;
+  updateElectionDates(id: string, startDate: Date | string | null, endDate: Date | string | null): Promise<Election>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -565,6 +566,29 @@ export class DatabaseStorage implements IStorage {
         status,
         updated_at: new Date().toISOString(),
       })
+      .eq("id", id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return mapElectionRow(data);
+  }
+
+  async updateElectionDates(id: string, startDate: Date | string | null, endDate: Date | string | null): Promise<Election> {
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (startDate !== undefined) {
+      updateData.start_date = startDate ? (typeof startDate === 'string' ? startDate : startDate.toISOString()) : null;
+    }
+    if (endDate !== undefined) {
+      updateData.end_date = endDate ? (typeof endDate === 'string' ? endDate : endDate.toISOString()) : null;
+    }
+
+    const { data, error } = await supabase
+      .from("elections")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import passport from "../auth/passport.js";
-import { loginAdminSchema } from "../../shared/schema.js";
+import { insertStudentSchema, loginAdminSchema } from "../../shared/schema.js";
 import { storage } from "../storage.js";
 import { z } from "zod";
 
@@ -108,6 +108,32 @@ export async function getStudentsRoute(req: Request, res: Response) {
 }
 
 /**
+ * Create student
+ * POST /api/admin/students
+ */
+export async function createStudentRoute(req: Request, res: Response) {
+  try {
+    const validation = insertStudentSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: validation.error.errors,
+      });
+    }
+
+    const student = await storage.createStudent(validation.data);
+    const { password, ...studentWithoutPassword } = student;
+    return res.status(201).json({ student: studentWithoutPassword });
+  } catch (error) {
+    console.error("Error creating student:", error);
+    return res.status(500).json({
+      message: "Failed to create student",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+/**
  * Update election status
  * PUT /api/admin/elections/:id/status
  */
@@ -128,6 +154,41 @@ export async function updateElectionStatusRoute(req: Request, res: Response) {
     console.error("Error updating election status:", error);
     return res.status(500).json({
       message: "Failed to update election status",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+/**
+ * Update election dates
+ * PUT /api/admin/elections/:id/dates
+ */
+export async function updateElectionDatesRoute(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const schema = z.object({
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
+    });
+
+    const validation = schema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: validation.error.errors,
+      });
+    }
+
+    const election = await storage.updateElectionDates(
+      id,
+      validation.data.startDate ?? null,
+      validation.data.endDate ?? null
+    );
+    return res.json({ election });
+  } catch (error) {
+    console.error("Error updating election dates:", error);
+    return res.status(500).json({
+      message: "Failed to update election dates",
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }

@@ -23,8 +23,13 @@ export default function AdminElections() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDatesDialogOpen, setIsEditDatesDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     status: "upcoming" as "upcoming" | "active" | "closed",
+    startDate: "",
+    endDate: "",
+  });
+  const [editDatesData, setEditDatesData] = useState({
     startDate: "",
     endDate: "",
   });
@@ -80,17 +85,92 @@ export default function AdminElections() {
     },
   });
 
+  // Update dates mutation
+  const updateDatesMutation = useMutation({
+    mutationFn: async ({ id, startDate, endDate }: { id: string; startDate: string | null; endDate: string | null }) => {
+      const res = await apiRequest("PUT", `/api/admin/elections/${id}/dates`, { startDate, endDate });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/election/status"] });
+      setIsEditDatesDialogOpen(false);
+      toast({
+        title: "Dates Updated",
+        description: "Election dates have been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update dates",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCreate = () => {
+    // Convert datetime-local format to ISO string
+    const convertToISO = (dateTimeLocal: string | null | undefined): string | null => {
+      if (!dateTimeLocal) return null;
+      const date = new Date(dateTimeLocal);
+      if (isNaN(date.getTime())) return null;
+      return date.toISOString();
+    };
+    
     createMutation.mutate({
       status: formData.status,
-      startDate: formData.startDate || null,
-      endDate: formData.endDate || null,
+      startDate: convertToISO(formData.startDate),
+      endDate: convertToISO(formData.endDate),
     });
   };
 
   const handleStatusChange = (newStatus: "upcoming" | "active" | "closed") => {
     if (electionData?.id) {
       updateStatusMutation.mutate({ id: electionData.id, status: newStatus });
+    }
+  };
+
+  const handleEditDates = () => {
+    if (electionData) {
+      // Convert ISO dates to datetime-local format
+      const formatForInput = (dateStr: string | null | undefined) => {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+        // Check if date is valid
+        if (isNaN(date.getTime())) return "";
+        // Get local datetime in format YYYY-MM-DDTHH:mm
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+      setEditDatesData({
+        startDate: formatForInput(electionData.startDate),
+        endDate: formatForInput(electionData.endDate),
+      });
+      setIsEditDatesDialogOpen(true);
+    }
+  };
+
+  const handleSaveDates = () => {
+    if (electionData?.id) {
+      // Convert datetime-local format to ISO string
+      const convertToISO = (dateTimeLocal: string | null | undefined): string | null => {
+        if (!dateTimeLocal) return null;
+        // datetime-local format is already in local time, so we create a Date object
+        // and convert it to ISO string
+        const date = new Date(dateTimeLocal);
+        if (isNaN(date.getTime())) return null;
+        return date.toISOString();
+      };
+      
+      updateDatesMutation.mutate({
+        id: electionData.id,
+        startDate: convertToISO(editDatesData.startDate),
+        endDate: convertToISO(editDatesData.endDate),
+      });
     }
   };
 
@@ -154,12 +234,12 @@ export default function AdminElections() {
                     </div>
                     {electionData.startDate && (
                       <p className="text-sm mt-2">
-                        Start: {new Date(electionData.startDate).toLocaleDateString()}
+                        Start: {new Date(electionData.startDate).toLocaleString()}
                       </p>
                     )}
                     {electionData.endDate && (
                       <p className="text-sm">
-                        End: {new Date(electionData.endDate).toLocaleDateString()}
+                        End: {new Date(electionData.endDate).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -181,6 +261,16 @@ export default function AdminElections() {
                           <SelectItem value="closed">Closed</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Button
+                        variant="outline"
+                        onClick={handleEditDates}
+                        className="w-full"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Edit Election Dates & Times
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -265,7 +355,7 @@ export default function AdminElections() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Start Date (Optional)</Label>
+                  <Label>Start Date & Time (Optional)</Label>
                   <Input
                     type="datetime-local"
                     value={formData.startDate}
@@ -273,7 +363,7 @@ export default function AdminElections() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>End Date (Optional)</Label>
+                  <Label>End Date & Time (Optional)</Label>
                   <Input
                     type="datetime-local"
                     value={formData.endDate}
@@ -293,6 +383,57 @@ export default function AdminElections() {
                     </>
                   ) : (
                     "Create"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Dates Dialog */}
+          <Dialog open={isEditDatesDialogOpen} onOpenChange={setIsEditDatesDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Election Dates & Times</DialogTitle>
+                <DialogDescription>
+                  Set the start and end dates and times for the election. These will be displayed on the home page.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Start Date & Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={editDatesData.startDate}
+                    onChange={(e) => setEditDatesData({ ...editDatesData, startDate: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    When the election voting period begins
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date & Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={editDatesData.endDate}
+                    onChange={(e) => setEditDatesData({ ...editDatesData, endDate: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    When the election voting period ends
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsEditDatesDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveDates} disabled={updateDatesMutation.isPending}>
+                  {updateDatesMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Dates"
                   )}
                 </Button>
               </DialogFooter>

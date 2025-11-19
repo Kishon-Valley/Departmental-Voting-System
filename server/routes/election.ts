@@ -20,6 +20,7 @@ export async function getElectionStatusRoute(req: Request, res: Response) {
       status: election.status,
       startDate: election.startDate,
       endDate: election.endDate,
+      id: election.id,
       election,
     });
   } catch (error) {

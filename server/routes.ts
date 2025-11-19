@@ -8,7 +8,7 @@ import { getPositionsRoute, getPositionByIdRoute } from "./routes/positions.js";
 import { submitVotesRoute, getMyVotesRoute } from "./routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "./routes/results.js";
 import { getElectionStatusRoute } from "./routes/election.js";
-import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute } from "./routes/admin.js";
+import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "./routes/admin.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -52,6 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Protected admin routes
   app.post(`${apiPrefix}/admin/elections`, requireAdmin, createElectionRoute);
   app.put(`${apiPrefix}/admin/elections/:id/status`, requireAdmin, updateElectionStatusRoute);
+  app.put(`${apiPrefix}/admin/elections/:id/dates`, requireAdmin, updateElectionDatesRoute);
   app.post(`${apiPrefix}/admin/positions`, requireAdmin, createPositionRoute);
   app.put(`${apiPrefix}/admin/positions/:id`, requireAdmin, updatePositionRoute);
   app.delete(`${apiPrefix}/admin/positions/:id`, requireAdmin, deletePositionRoute);
@@ -60,6 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete(`${apiPrefix}/admin/candidates/:id`, requireAdmin, deleteCandidateRoute);
   app.get(`${apiPrefix}/admin/votes`, requireAdmin, getAllVotesRoute);
   app.get(`${apiPrefix}/admin/students`, requireAdmin, getStudentsRoute);
+  app.post(`${apiPrefix}/admin/students`, requireAdmin, createStudentRoute);
 
   const httpServer = createServer(app);
 

@@ -5,12 +5,31 @@ import CountdownTimer from "@/components/CountdownTimer";
 import StatsSection from "@/components/StatsSection";
 import HowToVoteSection from "@/components/HowToVoteSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, AlertCircle } from "lucide-react";
+import { Calendar, AlertCircle, Loader2 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 
 export default function Home() {
-  const electionDate = new Date();
-  electionDate.setDate(electionDate.getDate() + 7);
+  // Fetch election status and dates
+  const { data: electionData, isLoading: electionLoading } = useQuery<{ 
+    status: string; 
+    startDate?: string | null; 
+    endDate?: string | null;
+    election?: { id: string; status: string; startDate: string | null; endDate: string | null };
+  }>({
+    queryKey: ["/api/election/status"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+
+  // Use actual election start date if available, otherwise fallback to 7 days from now
+  const electionDate = electionData?.startDate 
+    ? new Date(electionData.startDate)
+    : (() => {
+        const fallbackDate = new Date();
+        fallbackDate.setDate(fallbackDate.getDate() + 7);
+        return fallbackDate;
+      })();
 
   const announcements = [
     {
@@ -33,7 +52,16 @@ export default function Home() {
 
         <section className="py-20 bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <CountdownTimer targetDate={electionDate} />
+            {electionLoading ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                  <p className="text-muted-foreground">Loading election information...</p>
+                </div>
+              </div>
+            ) : (
+              <CountdownTimer targetDate={electionDate} />
+            )}
             <StatsSection />
           </div>
         </section>

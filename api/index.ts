@@ -10,7 +10,7 @@ import { getPositionsRoute, getPositionByIdRoute } from "../server/routes/positi
 import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
-import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute } from "../server/routes/admin.js";
+import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
 
@@ -147,6 +147,8 @@ async function getApp(): Promise<express.Application> {
   app.post("/api/admin/elections", requireAdmin, createElectionRoute);
   app.put("/admin/elections/:id/status", requireAdmin, updateElectionStatusRoute);
   app.put("/api/admin/elections/:id/status", requireAdmin, updateElectionStatusRoute);
+  app.put("/admin/elections/:id/dates", requireAdmin, updateElectionDatesRoute);
+  app.put("/api/admin/elections/:id/dates", requireAdmin, updateElectionDatesRoute);
   app.post("/admin/positions", requireAdmin, createPositionRoute);
   app.post("/api/admin/positions", requireAdmin, createPositionRoute);
   app.put("/admin/positions/:id", requireAdmin, updatePositionRoute);
@@ -163,6 +165,8 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/admin/votes", requireAdmin, getAllVotesRoute);
   app.get("/admin/students", requireAdmin, getStudentsRoute);
   app.get("/api/admin/students", requireAdmin, getStudentsRoute);
+  app.post("/admin/students", requireAdmin, createStudentRoute);
+  app.post("/api/admin/students", requireAdmin, createStudentRoute);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
