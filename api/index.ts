@@ -47,6 +47,18 @@ async function getApp(): Promise<express.Application> {
       sameSite: "lax",
     }),
   );
+  
+  // Add middleware to log session state for debugging
+  app.use((req, res, next) => {
+    // Log session state before request processing
+    if (req.path?.includes('/auth/login')) {
+      console.log('Login request - session before:', req.session ? 'exists' : 'none', 'cookies:', req.headers.cookie);
+    }
+    if (req.path?.includes('/auth/me')) {
+      console.log('Auth me request - session:', req.session ? 'exists' : 'none', 'cookies:', req.headers.cookie);
+    }
+    next();
+  });
 
   // Initialize Passport
   // Patch cookie-session so Passport can call req.session.regenerate/destroy/save
@@ -464,8 +476,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const responseHeaders: Record<string, string | string[]> = {};
   let responseEnded = false;
   
+  // Create an EventEmitter-like object for response events
+  // cookie-session listens to 'finish' event to save cookies
+  const responseEvents: { [key: string]: Array<(...args: any[]) => void> } = {};
+  const emit = (event: string, ...args: any[]) => {
+    if (responseEvents[event]) {
+      responseEvents[event].forEach(listener => {
+        try {
+          listener(...args);
+        } catch (err) {
+          console.error(`Error in ${event} listener:`, err);
+        }
+      });
+    }
+  };
+  
   const expressRes = {
     ...res,
+    // Add EventEmitter methods that cookie-session might use
+    on: function(event: string, listener: (...args: any[]) => void) {
+      if (!responseEvents[event]) {
+        responseEvents[event] = [];
+      }
+      responseEvents[event].push(listener);
+      return this;
+    },
+    once: function(event: string, listener: (...args: any[]) => void) {
+      const onceWrapper = (...args: any[]) => {
+        listener(...args);
+        const index = responseEvents[event]?.indexOf(onceWrapper);
+        if (index !== undefined && index >= 0) {
+          responseEvents[event].splice(index, 1);
+        }
+      };
+      if (!responseEvents[event]) {
+        responseEvents[event] = [];
+      }
+      responseEvents[event].push(onceWrapper);
+      return this;
+    },
+    emit: emit,
     statusCode: statusCode,
     status: function(code: number) {
       statusCode = code;
@@ -476,50 +526,104 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (responseEnded) return this;
       
       const sendJsonResponse = () => {
+        // Capture any headers that cookie-session might have set
+        // cookie-session sets cookies via res.cookie() which we've implemented
+        // but we also need to check if it set headers directly
+        const finalHeaders = { ...responseHeaders };
+        
+        // Check if cookie-session set any cookies via res.cookie()
+        // These should already be in responseHeaders['set-cookie']
+        // But also check the actual Vercel response for any headers
+        const actualHeaders = res.getHeaders();
+        Object.entries(actualHeaders).forEach(([name, value]) => {
+          const lowerName = name.toLowerCase();
+          if (lowerName === 'set-cookie') {
+            const existing = finalHeaders['set-cookie'] || [];
+            const newCookies = Array.isArray(value) 
+              ? value.filter((v): v is string => typeof v === 'string')
+              : (typeof value === 'string' ? [value] : []);
+            const merged = Array.isArray(existing) 
+              ? [...existing, ...newCookies] 
+              : [...(existing ? [existing] : []), ...newCookies];
+            finalHeaders['set-cookie'] = merged;
+          } else if (!finalHeaders[lowerName]) {
+            if (typeof value === 'string' || Array.isArray(value)) {
+              finalHeaders[lowerName] = value;
+            }
+          }
+        });
+        
         // Set all collected headers before sending response
-        Object.entries(responseHeaders).forEach(([name, value]) => {
+        Object.entries(finalHeaders).forEach(([name, value]) => {
           res.setHeader(name, value);
         });
         res.setHeader('Content-Type', 'application/json');
         res.statusCode = statusCode;
         responseEnded = true;
+        
+        // Log cookies for debugging
+        if (finalHeaders['set-cookie']) {
+          console.log('Setting cookies in response:', finalHeaders['set-cookie']);
+        }
+        
+        // Emit 'finish' event before ending (cookie-session listens to this)
+        emit('finish');
+        
         res.end(JSON.stringify(body));
       };
       
-      // Ensure session is saved before sending response (for cookie-session)
-      // cookie-session automatically saves when response ends, but we need to ensure it's triggered
+      // cookie-session saves cookies when the response is about to end
+      // We need to trigger its save mechanism manually
+      // The cookie-session middleware listens to res.on('finish'), but we need to ensure it runs
+      // Try to trigger cookie-session's save by calling res.end() on our wrapper
+      // But first, ensure session is marked as modified
       if (expressReq.session) {
-        // Mark session as modified to ensure it's saved
         (expressReq.session as any).isModified = true;
-        // Trigger save if available
-        if (typeof (expressReq.session as any).save === 'function') {
-          try {
-            (expressReq.session as any).save(() => {
-              sendJsonResponse();
-            });
-            return this;
-          } catch (err) {
-            console.error('Error saving session in json:', err);
-            sendJsonResponse();
-            return this;
-          }
-        }
       }
       
-      // If no session or save not available, send response directly
-      sendJsonResponse();
+      // Use setTimeout to allow cookie-session middleware to process
+      // This gives cookie-session a chance to set cookies before we send
+      setTimeout(() => {
+        sendJsonResponse();
+      }, 0);
+      
       return this;
     },
     end: function(chunk?: any) {
       if (responseEnded) return this;
       
       const sendEndResponse = () => {
+        // Capture any headers that cookie-session might have set
+        const finalHeaders = { ...responseHeaders };
+        const actualHeaders = res.getHeaders();
+        Object.entries(actualHeaders).forEach(([name, value]) => {
+          const lowerName = name.toLowerCase();
+          if (lowerName === 'set-cookie') {
+            const existing = finalHeaders['set-cookie'] || [];
+            const newCookies = Array.isArray(value) 
+              ? value.filter((v): v is string => typeof v === 'string')
+              : (typeof value === 'string' ? [value] : []);
+            const merged = Array.isArray(existing) 
+              ? [...existing, ...newCookies] 
+              : [...(existing ? [existing] : []), ...newCookies];
+            finalHeaders['set-cookie'] = merged;
+          } else if (!finalHeaders[lowerName]) {
+            if (typeof value === 'string' || Array.isArray(value)) {
+              finalHeaders[lowerName] = value;
+            }
+          }
+        });
+        
         // Set all collected headers before sending response
-        Object.entries(responseHeaders).forEach(([name, value]) => {
+        Object.entries(finalHeaders).forEach(([name, value]) => {
           res.setHeader(name, value);
         });
         res.statusCode = statusCode;
         responseEnded = true;
+        
+        // Emit 'finish' event before ending (cookie-session listens to this)
+        emit('finish');
+        
         if (chunk) {
           res.end(chunk);
         } else {
@@ -527,27 +631,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       };
       
-      // Ensure session is saved before sending response (for cookie-session)
+      // Mark session as modified to trigger cookie-session save
       if (expressReq.session) {
-        // Mark session as modified to ensure it's saved
         (expressReq.session as any).isModified = true;
-        // Trigger save if available
-        if (typeof (expressReq.session as any).save === 'function') {
-          try {
-            (expressReq.session as any).save(() => {
-              sendEndResponse();
-            });
-            return this;
-          } catch (err) {
-            console.error('Error saving session in end:', err);
-            sendEndResponse();
-            return this;
-          }
-        }
       }
       
-      // If no session or save not available, send response directly
-      sendEndResponse();
+      // Use setTimeout to allow cookie-session to process
+      setTimeout(() => {
+        sendEndResponse();
+      }, 0);
+      
       return this;
     },
     setHeader: function(name: string, value: string | string[]) {
@@ -622,36 +715,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
-    expressApp(expressReq, expressRes, (err?: any) => {
+    expressApp(expressReq, expressRes, async (err?: any) => {
       if (err) {
         console.error('Express error:', err);
         reject(err);
-      } else {
-        // Before resolving, ensure all headers (especially Set-Cookie) are captured
-        // Check if Vercel response has any additional headers we need to merge
-        const vercelHeaders = res.getHeaders();
-        Object.entries(vercelHeaders).forEach(([name, value]) => {
-          const lowerName = name.toLowerCase();
-          if (lowerName === 'set-cookie') {
-            // Merge Set-Cookie headers
-            const existing = responseHeaders['set-cookie'] || [];
-            const newCookies = Array.isArray(value) 
-              ? value.filter((v): v is string => typeof v === 'string')
-              : (typeof value === 'string' ? [value] : []);
-            const merged = Array.isArray(existing) 
-              ? [...existing, ...newCookies] 
-              : [...(existing ? [existing] : []), ...newCookies];
-            responseHeaders['set-cookie'] = merged;
-            res.setHeader('Set-Cookie', merged);
-          } else if (!responseHeaders[lowerName]) {
-            // Only set if we don't already have it
-            if (typeof value === 'string' || Array.isArray(value)) {
-              responseHeaders[lowerName] = value;
-            }
-          }
-        });
-        resolve();
+        return;
       }
+      
+      // Wait for any async operations (like cookie-session saving) to complete
+      // cookie-session saves cookies when response finishes, so we need to wait
+      await new Promise(resolve => setImmediate(resolve));
+      
+      // Before resolving, ensure all headers (especially Set-Cookie) are captured
+      // Check if Vercel response has any additional headers we need to merge
+      const vercelHeaders = res.getHeaders();
+      Object.entries(vercelHeaders).forEach(([name, value]) => {
+        const lowerName = name.toLowerCase();
+        if (lowerName === 'set-cookie') {
+          // Merge Set-Cookie headers
+          const existing = responseHeaders['set-cookie'] || [];
+          const newCookies = Array.isArray(value) 
+            ? value.filter((v): v is string => typeof v === 'string')
+            : (typeof value === 'string' ? [value] : []);
+          const merged = Array.isArray(existing) 
+            ? [...existing, ...newCookies] 
+            : [...(existing ? [existing] : []), ...newCookies];
+          responseHeaders['set-cookie'] = merged;
+          res.setHeader('Set-Cookie', merged);
+        } else if (!responseHeaders[lowerName]) {
+          // Only set if we don't already have it
+          if (typeof value === 'string' || Array.isArray(value)) {
+            responseHeaders[lowerName] = value;
+          }
+        }
+      });
+      
+      // Log final headers for debugging
+      if (responseHeaders['set-cookie']) {
+        console.log('Final Set-Cookie headers:', responseHeaders['set-cookie']);
+      } else {
+        console.log('No Set-Cookie headers found - session may not have been saved');
+      }
+      
+      resolve();
     });
   });
 }
