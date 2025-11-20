@@ -21,6 +21,7 @@ async function getApp(): Promise<express.Application> {
   if (app) return app;
 
   app = express();
+  app.set("trust proxy", 1);
 
   // Body parsing middleware
   // Note: In Vercel serverless functions, the body is already parsed by the platform

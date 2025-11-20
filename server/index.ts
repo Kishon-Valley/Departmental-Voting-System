@@ -7,6 +7,7 @@ import { registerRoutes } from "./routes.js";
 import { setupVite, serveStatic, log } from "./vite.js";
 
 const app = express();
+app.set("trust proxy", 1);
 
 declare module 'http' {
   interface IncomingMessage {
