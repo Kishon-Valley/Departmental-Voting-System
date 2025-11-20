@@ -50,19 +50,34 @@ async function getApp(): Promise<express.Application> {
   // Initialize Passport
   // Patch cookie-session so Passport can call req.session.regenerate/destroy/save
   app.use((req, _res, next) => {
-    if (req.session && typeof (req.session as any).regenerate !== 'function') {
-      (req.session as any).regenerate = (cb?: (err?: any) => void) => {
-        cb?.();
-      };
-    }
-    if (req.session && typeof (req.session as any).destroy !== 'function') {
-      (req.session as any).destroy = (cb?: (err?: any) => void) => {
-        req.session = null as any;
-        cb?.();
-      };
-    }
-    if (req.session && typeof (req.session as any).save !== 'function') {
-      (req.session as any).save = (cb?: (err?: any) => void) => cb?.();
+    if (req.session) {
+      if (typeof (req.session as any).regenerate !== 'function') {
+        (req.session as any).regenerate = (cb?: (err?: any) => void) => {
+          cb?.();
+        };
+      }
+      if (typeof (req.session as any).destroy !== 'function') {
+        (req.session as any).destroy = (cb?: (err?: any) => void) => {
+          req.session = null as any;
+          cb?.();
+        };
+      }
+      // Ensure save actually triggers cookie-session to save
+      if (typeof (req.session as any).save !== 'function') {
+        const originalSave = (req.session as any).save;
+        (req.session as any).save = (cb?: (err?: any) => void) => {
+          // Mark session as modified so cookie-session will save it
+          if (req.session) {
+            (req.session as any).isModified = true;
+          }
+          // Call the original save if it exists, otherwise just callback
+          if (originalSave && typeof originalSave === 'function') {
+            originalSave(cb);
+          } else {
+            cb?.();
+          }
+        };
+      }
     }
     next();
   });
@@ -428,6 +443,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Create Express-compatible response object
   let statusCode = 200;
   const responseHeaders: Record<string, string | string[]> = {};
+  let responseEnded = false;
   
   const expressRes = {
     ...res,
@@ -438,26 +454,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return this;
     },
     json: function(body: any) {
-      // Set all collected headers before sending response
-      Object.entries(responseHeaders).forEach(([name, value]) => {
-        res.setHeader(name, value);
-      });
-      res.setHeader('Content-Type', 'application/json');
-      res.statusCode = statusCode;
-      res.end(JSON.stringify(body));
+      if (responseEnded) return this;
+      
+      const sendJsonResponse = () => {
+        // Set all collected headers before sending response
+        Object.entries(responseHeaders).forEach(([name, value]) => {
+          res.setHeader(name, value);
+        });
+        res.setHeader('Content-Type', 'application/json');
+        res.statusCode = statusCode;
+        responseEnded = true;
+        res.end(JSON.stringify(body));
+      };
+      
+      // Ensure session is saved before sending response (for cookie-session)
+      // cookie-session automatically saves when response ends, but we need to ensure it's triggered
+      if (expressReq.session) {
+        // Mark session as modified to ensure it's saved
+        (expressReq.session as any).isModified = true;
+        // Trigger save if available
+        if (typeof (expressReq.session as any).save === 'function') {
+          try {
+            (expressReq.session as any).save(() => {
+              sendJsonResponse();
+            });
+            return this;
+          } catch (err) {
+            console.error('Error saving session in json:', err);
+            sendJsonResponse();
+            return this;
+          }
+        }
+      }
+      
+      // If no session or save not available, send response directly
+      sendJsonResponse();
       return this;
     },
     end: function(chunk?: any) {
-      // Set all collected headers before sending response
-      Object.entries(responseHeaders).forEach(([name, value]) => {
-        res.setHeader(name, value);
-      });
-      res.statusCode = statusCode;
-      if (chunk) {
-        res.end(chunk);
-      } else {
-        res.end();
+      if (responseEnded) return this;
+      
+      const sendEndResponse = () => {
+        // Set all collected headers before sending response
+        Object.entries(responseHeaders).forEach(([name, value]) => {
+          res.setHeader(name, value);
+        });
+        res.statusCode = statusCode;
+        responseEnded = true;
+        if (chunk) {
+          res.end(chunk);
+        } else {
+          res.end();
+        }
+      };
+      
+      // Ensure session is saved before sending response (for cookie-session)
+      if (expressReq.session) {
+        // Mark session as modified to ensure it's saved
+        (expressReq.session as any).isModified = true;
+        // Trigger save if available
+        if (typeof (expressReq.session as any).save === 'function') {
+          try {
+            (expressReq.session as any).save(() => {
+              sendEndResponse();
+            });
+            return this;
+          } catch (err) {
+            console.error('Error saving session in end:', err);
+            sendEndResponse();
+            return this;
+          }
+        }
       }
+      
+      // If no session or save not available, send response directly
+      sendEndResponse();
       return this;
     },
     setHeader: function(name: string, value: string | string[]) {
