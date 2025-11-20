@@ -52,10 +52,10 @@ async function getApp(): Promise<express.Application> {
   app.use((req, res, next) => {
     // Log session state before request processing
     if (req.path?.includes('/auth/login')) {
-      console.log('Login request - session before:', req.session ? 'exists' : 'none', 'cookies:', req.headers.cookie);
+      console.log('Login request - session before:', req.session ? 'exists' : 'none', 'cookies:', req.headers.cookie, 'session data:', req.session ? Object.keys(req.session) : 'none');
     }
     if (req.path?.includes('/auth/me')) {
-      console.log('Auth me request - session:', req.session ? 'exists' : 'none', 'cookies:', req.headers.cookie);
+      console.log('Auth me request - session:', req.session ? 'exists' : 'none', 'cookies:', req.headers.cookie, 'user:', (req as any).user ? 'exists' : 'none', 'session data:', req.session ? Object.keys(req.session) : 'none');
     }
     next();
   });
@@ -323,6 +323,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     url: req.url,
     path: (req as any).path,
     query: req.query,
+    cookieHeader: req.headers.cookie,
+    cookies: req.cookies,
+    allHeaders: Object.keys(req.headers),
   });
   
   // Extract the path from Vercel's request
@@ -355,8 +358,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Parse cookies from headers if not already parsed by Vercel
   // cookie-session reads directly from req.headers.cookie, so ensure it's available
   let cookies: Record<string, string> = {};
-  if (req.cookies) {
-    cookies = req.cookies;
+  
+  // Vercel might provide cookies in req.cookies or req.headers.cookie
+  // Check both and ensure we have a cookie string for cookie-session
+  if (req.cookies && typeof req.cookies === 'object') {
+    cookies = req.cookies as Record<string, string>;
+    // Convert to cookie string format for cookie-session
+    const cookieString = Object.entries(cookies)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('; ');
+    if (cookieString && !req.headers.cookie) {
+      req.headers.cookie = cookieString;
+    }
   }
   
   // Ensure req.headers.cookie is a string (cookie-session needs this)
@@ -381,6 +394,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cookies[parts[0].trim()] = decodeURIComponent(parts[1].trim());
       }
     });
+  }
+  
+  // Log cookie parsing for debugging
+  if (req.url?.includes('/auth/')) {
+    console.log('Cookie parsing - header:', req.headers.cookie, 'parsed:', Object.keys(cookies), 'vercel cookies:', req.cookies);
   }
   
   // Ensure body is parsed for JSON requests (Vercel should do this, but ensure it's there)
