@@ -39,6 +39,7 @@ async function getApp(): Promise<express.Application> {
   // Cookie-session configuration
   app.use(
     cookieSession({
+      path: '/',
       name: "session",
       keys: [process.env.SESSION_SECRET || "change-me"],
       maxAge: 24 * 60 * 60 * 1000,
@@ -440,8 +441,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     login: undefined,
     logout: undefined,
   };
-  expressReq.secure = expressReq.protocol === 'https';
-  expressReq.connection = { encrypted: expressReq.secure };
   
   // Create Express-compatible response object
   let statusCode = 200;
@@ -575,8 +574,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return this;
     },
   } as any;
-  expressReq.res = expressRes;
-  expressRes.req = expressReq;
   
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {

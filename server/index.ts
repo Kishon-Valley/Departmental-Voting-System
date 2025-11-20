@@ -26,6 +26,7 @@ app.use(express.urlencoded({ extended: false }));
 // Cookie-session configuration (stateless, works across lambda instances)
 app.use(
   cookieSession({
+    path: '/',
     name: "session",
     keys: [process.env.SESSION_SECRET || "change-me"],
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
