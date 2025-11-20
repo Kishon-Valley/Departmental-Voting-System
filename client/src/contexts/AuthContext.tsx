@@ -55,28 +55,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return res.json();
     },
     onSuccess: async (data) => {
-      // Only show confirmation modal on first login (when email and year are both null/empty)
+      const redirectToHome = async () => {
+        try {
+          await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
+        } catch (error) {
+          console.error("Error refetching auth state:", error);
+        } finally {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          setLocation("/");
+        }
+      };
+
+      // Show confirmation modal on first login (email and year missing),
+      // but still navigate to the dashboard so the user doesn't remain on the login screen.
       const isFirstLogin = !data.user.email && !data.user.year;
       if (isFirstLogin) {
         setPendingUser(data.user);
         setShowConfirmationModal(true);
-      } else {
-        // User has already confirmed, wait for auth state to update before redirecting
-        // This ensures the session cookie is properly set, especially in serverless environments
-        try {
-          // Wait for the auth query to refetch and confirm authentication
-          await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
-          // Additional delay to ensure cookie propagation in serverless environments like Vercel
-          await new Promise(resolve => setTimeout(resolve, 200));
-          setLocation("/");
-        } catch (error) {
-          // If refetch fails, still try to redirect (user might still be authenticated)
-          console.error("Error refetching auth state:", error);
-          setTimeout(() => {
-            setLocation("/");
-          }, 200);
-        }
+        await redirectToHome();
+        return;
       }
+
+      await redirectToHome();
     },
   });
 
