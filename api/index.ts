@@ -39,7 +39,6 @@ async function getApp(): Promise<express.Application> {
   // Cookie-session configuration
   app.use(
     cookieSession({
-      path: '/',
       name: "session",
       keys: [process.env.SESSION_SECRET || "change-me"],
       maxAge: 24 * 60 * 60 * 1000,
@@ -541,6 +540,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     },
     getHeader: function(name: string) {
       return res.getHeader(name) || responseHeaders[name.toLowerCase()];
+    },
+    // Implement writeHead so that cookie-session (and other middlewares) can
+    // reliably flush headers such as Set-Cookie in the serverless environment.
+    writeHead: function(status: number, headers?: Record<string, string | string[]>) {
+      if (headers) {
+        Object.entries(headers).forEach(([key, value]) => {
+          responseHeaders[key.toLowerCase()] = value;
+          res.setHeader(key, value);
+        });
+      }
+      if (status) {
+        statusCode = status;
+        res.statusCode = status;
+      }
+      return this;
     },
     cookie: function(name: string, value: string, options?: any) {
       // Handle cookie setting (used by cookie-session)
