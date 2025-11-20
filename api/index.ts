@@ -440,6 +440,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     login: undefined,
     logout: undefined,
   };
+  expressReq.secure = expressReq.protocol === 'https';
+  expressReq.connection = { encrypted: expressReq.secure };
   
   // Create Express-compatible response object
   let statusCode = 200;
