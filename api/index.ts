@@ -341,14 +341,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   
   // Parse cookies from headers if not already parsed by Vercel
+  // cookie-session reads directly from req.headers.cookie, so ensure it's available
   let cookies: Record<string, string> = {};
   if (req.cookies) {
     cookies = req.cookies;
-  } else if (req.headers.cookie) {
+  }
+  
+  // Ensure req.headers.cookie is a string (cookie-session needs this)
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    if (typeof cookieHeader === 'string') {
+      // Already a string, keep it
+    } else if (Array.isArray(cookieHeader)) {
+      // Convert array to string
+      req.headers.cookie = (cookieHeader as string[]).join('; ');
+    } else {
+      // Convert other types to string
+      req.headers.cookie = String(cookieHeader);
+    }
+  }
+  
+  // Also parse into cookies object for convenience
+  if (req.headers.cookie && typeof req.headers.cookie === 'string') {
     req.headers.cookie.split(';').forEach((cookie: string) => {
       const parts = cookie.trim().split('=');
       if (parts.length === 2) {
-        cookies[parts[0]] = decodeURIComponent(parts[1]);
+        cookies[parts[0].trim()] = decodeURIComponent(parts[1].trim());
       }
     });
   }
@@ -534,8 +552,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     },
     setHeader: function(name: string, value: string | string[]) {
       // Store headers so they can be set when response is sent
-      responseHeaders[name.toLowerCase()] = value;
-      res.setHeader(name, value);
+      const lowerName = name.toLowerCase();
+      
+      // Special handling for Set-Cookie to merge multiple cookies
+      if (lowerName === 'set-cookie') {
+        const existing = responseHeaders['set-cookie'] || [];
+        const newCookies = Array.isArray(value) ? value : [value];
+        const merged = Array.isArray(existing) 
+          ? [...existing, ...newCookies] 
+          : [...(existing ? [existing] : []), ...newCookies];
+        responseHeaders['set-cookie'] = merged;
+        res.setHeader('Set-Cookie', merged);
+      } else {
+        responseHeaders[lowerName] = value;
+        res.setHeader(name, value);
+      }
       return this;
     },
     getHeader: function(name: string) {
@@ -596,6 +627,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error('Express error:', err);
         reject(err);
       } else {
+        // Before resolving, ensure all headers (especially Set-Cookie) are captured
+        // Check if Vercel response has any additional headers we need to merge
+        const vercelHeaders = res.getHeaders();
+        Object.entries(vercelHeaders).forEach(([name, value]) => {
+          const lowerName = name.toLowerCase();
+          if (lowerName === 'set-cookie') {
+            // Merge Set-Cookie headers
+            const existing = responseHeaders['set-cookie'] || [];
+            const newCookies = Array.isArray(value) 
+              ? value.filter((v): v is string => typeof v === 'string')
+              : (typeof value === 'string' ? [value] : []);
+            const merged = Array.isArray(existing) 
+              ? [...existing, ...newCookies] 
+              : [...(existing ? [existing] : []), ...newCookies];
+            responseHeaders['set-cookie'] = merged;
+            res.setHeader('Set-Cookie', merged);
+          } else if (!responseHeaders[lowerName]) {
+            // Only set if we don't already have it
+            if (typeof value === 'string' || Array.isArray(value)) {
+              responseHeaders[lowerName] = value;
+            }
+          }
+        });
         resolve();
       }
     });
