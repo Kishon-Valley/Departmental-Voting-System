@@ -573,6 +573,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return this;
     },
   } as any;
+  expressReq.res = expressRes;
+  expressRes.req = expressReq;
   
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
