@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 
 interface LoginResponse {
   message: string;
@@ -25,6 +26,7 @@ export default function LoginForm() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,6 +34,8 @@ export default function LoginForm() {
     setIsLoading(true);
     try {
       await login(formData.indexNumber, formData.password);
+      // Ensure navigation to the dashboard/home after successful login
+      setLocation("/");
       toast({
         title: "Login Successful",
         description: "Welcome to the voting portal.",
