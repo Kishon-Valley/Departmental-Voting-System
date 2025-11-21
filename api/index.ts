@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express from "express";
 import cookieSession from "cookie-session";
 import passport from "../server/auth/passport.js";
+import Cookies from "cookies";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
 import { uploadAvatarRoute, uploadAvatarBase64Route } from "../server/routes/upload.js";
 import { getCandidatesRoute, getCandidateByIdRoute, getCandidatesByPositionRoute } from "../server/routes/candidates.js";
@@ -657,7 +658,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               // We need to manually serialize and sign the session
               try {
                 // cookie-session uses the 'cookies' package which handles signing
-                const Cookies = require('cookies');
                 const sessionName = "session";
                 const keys = [process.env.SESSION_SECRET || "change-me"];
                 
