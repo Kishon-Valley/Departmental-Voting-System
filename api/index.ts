@@ -652,9 +652,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Check if cookie was set by cookie-session
             const cookiesSet = responseHeaders['set-cookie'] || [];
             if (cookiesSet.length === 0 && sessionData && Object.keys(sessionData).length > 0) {
-              // Cookie-session didn't save, manually set it using cookie-session's format
-              // We'll need to use the actual cookie-session signing, but for now let's log
-              console.log('WARNING: cookie-session did not save cookie, session data:', Object.keys(sessionData));
+              // Cookie-session didn't save, manually trigger it
+              // cookie-session saves by calling res.cookie() with signed data
+              // We need to manually serialize and sign the session
+              try {
+                // cookie-session uses the 'cookies' package which handles signing
+                const Cookies = require('cookies');
+                const sessionName = "session";
+                const keys = [process.env.SESSION_SECRET || "change-me"];
+                
+                // Create a Cookies instance to use its signing mechanism
+                const cookieInstance = new Cookies(expressReq, expressRes, { keys });
+                
+                // Serialize session (exclude internal methods)
+                const sessionToSave: any = {};
+                Object.keys(sessionData).forEach(k => {
+                  if (!['regenerate', 'destroy', 'save', 'isModified'].includes(k)) {
+                    sessionToSave[k] = sessionData[k];
+                  }
+                });
+                
+                // Only save if there's actual data
+                if (Object.keys(sessionToSave).length > 0) {
+                  // Use JSON.stringify to serialize (cookie-session uses its own encode, but JSON should work)
+                  const sessionString = JSON.stringify(sessionToSave);
+                  
+                  // Use Cookies.set() which handles signing automatically
+                  cookieInstance.set(sessionName, sessionString, {
+                    maxAge: 24 * 60 * 60 * 1000,
+                    secure: true,
+                    httpOnly: true,
+                    sameSite: "lax",
+                    path: "/",
+                    signed: true,
+                  });
+                  
+                  console.log('Manually set session cookie with', Object.keys(sessionToSave).length, 'keys:', Object.keys(sessionToSave));
+                } else {
+                  console.log('WARNING: Session has no data to save, keys:', Object.keys(sessionData));
+                }
+              } catch (err) {
+                console.error('Error manually saving cookie:', err);
+                console.log('WARNING: cookie-session did not save cookie, session data:', Object.keys(sessionData));
+              }
             }
             sendJsonResponse();
           });
