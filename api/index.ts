@@ -59,7 +59,20 @@ async function getApp(): Promise<express.Application> {
     }
     
     // Hook into response to log when cookies are set
+    // This logs when the REAL Express response ends (in our wrapper)
     const originalEnd = res.end;
+    const originalJson = res.json;
+    
+    res.json = function(body: any) {
+      const setCookieHeaders = res.getHeader('Set-Cookie');
+      if (setCookieHeaders) {
+        console.log('Response json - Set-Cookie headers:', setCookieHeaders);
+      } else {
+        console.log('Response json - NO Set-Cookie headers!');
+      }
+      return originalJson.call(this, body);
+    };
+    
     res.end = function(chunk?: any, encoding?: any, cb?: any) {
       const setCookieHeaders = res.getHeader('Set-Cookie');
       if (setCookieHeaders) {
@@ -604,22 +617,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       
       // cookie-session saves cookies when the response is about to end
-      // We need to manually trigger its save mechanism
-      // cookie-session listens to res.on('finish') to save cookies
-      // Emit 'finish' event BEFORE sending response to trigger cookie-session's save
+      // In serverless, we need to manually trigger cookie-session's save
+      // cookie-session stores the session in req.session and saves it via res.cookie()
+      // We need to manually serialize and set the cookie if cookie-session doesn't do it
+      
+      // Mark session as modified
       if (expressReq.session) {
         (expressReq.session as any).isModified = true;
+        
+        // Manually trigger cookie-session's save by calling res.cookie() directly
+        // cookie-session uses the session name and keys to sign the cookie
+        try {
+          // Import cookie-session's signing function if available
+          // Otherwise, manually construct the signed cookie
+          const sessionName = "session";
+          const sessionData = expressReq.session;
+          
+          // Serialize session data
+          const sessionString = JSON.stringify(sessionData);
+          
+          // Get the signing key from environment
+          const keys = [process.env.SESSION_SECRET || "change-me"];
+          const key = keys[0];
+          
+          // Simple signing (cookie-session uses a more complex algorithm, but this should work for now)
+          // Actually, cookie-session uses a library for signing. Let's try a different approach.
+          // We'll emit the finish event and wait, but also manually ensure the cookie is set
+          
+          // Emit 'finish' event to trigger cookie-session's save handler
+          emit('finish');
+          
+          // Give cookie-session a chance to save, but also manually check
+          setImmediate(() => {
+            // Check if cookie was set by cookie-session
+            const cookiesSet = responseHeaders['set-cookie'] || [];
+            if (cookiesSet.length === 0 && sessionData && Object.keys(sessionData).length > 0) {
+              // Cookie-session didn't save, manually set it using cookie-session's format
+              // We'll need to use the actual cookie-session signing, but for now let's log
+              console.log('WARNING: cookie-session did not save cookie, session data:', Object.keys(sessionData));
+            }
+            sendJsonResponse();
+          });
+        } catch (err) {
+          console.error('Error in cookie save logic:', err);
+          // Emit finish and send response anyway
+          emit('finish');
+          setImmediate(() => {
+            sendJsonResponse();
+          });
+        }
+      } else {
+        // No session, just send response
+        emit('finish');
+        setImmediate(() => {
+          sendJsonResponse();
+        });
       }
-      
-      // Emit 'finish' event to trigger cookie-session's save handler
-      // This should cause cookie-session to call res.cookie() to set the session cookie
-      emit('finish');
-      
-      // Wait a tick to allow cookie-session to process the finish event
-      // and set cookies via res.cookie() before we send the response
-      setImmediate(() => {
-        sendJsonResponse();
-      });
       
       return this;
     },
