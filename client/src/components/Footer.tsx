@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="font-serif font-semibold text-lg mb-4">LabTech Elections</h3>
+            <h3 className="font-serif font-semibold text-lg mb-4">LabTech E-Center</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Empowering democratic participation in Laboratory Technology departmental governance at University of Cape Coast.
             </p>

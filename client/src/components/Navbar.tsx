@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Vote, Menu, X, LogOut, User } from "lucide-react";
+import { Menu, X, LogOut, User } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -26,8 +26,12 @@ export default function Navbar() {
             href="/"
             className="flex items-center gap-2 hover-elevate active-elevate-2 rounded-md px-2 py-1"
           >
-            <Vote className="h-6 w-6 text-primary" />
-            <span className="text-xl font-serif font-semibold">LabTech Elections</span>
+            <img 
+              src="/ucc-logo.png" 
+              alt="University of Cape Coast Logo" 
+              className="h-10 w-auto object-contain"
+            />
+            <span className="text-xl font-serif font-semibold">LabTech E-Center</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6">
