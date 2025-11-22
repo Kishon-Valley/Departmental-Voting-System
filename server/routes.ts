@@ -8,7 +8,8 @@ import { getPositionsRoute, getPositionByIdRoute } from "./routes/positions.js";
 import { submitVotesRoute, getMyVotesRoute } from "./routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "./routes/results.js";
 import { getElectionStatusRoute } from "./routes/election.js";
-import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "./routes/admin.js";
+import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "./routes/admin.js";
+import { jwtAuth, requireAuth, requireAdmin } from "./middleware/jwtAuth.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -19,8 +20,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.post(`${apiPrefix}/auth/login`, loginRoute);
   app.post(`${apiPrefix}/auth/logout`, logoutRoute);
-  app.get(`${apiPrefix}/auth/me`, meRoute);
-  app.put(`${apiPrefix}/auth/profile`, updateProfileRoute);
+  app.get(`${apiPrefix}/auth/me`, jwtAuth, meRoute);
+  app.put(`${apiPrefix}/auth/profile`, jwtAuth, updateProfileRoute);
   app.post(`${apiPrefix}/auth/upload-avatar`, uploadMiddleware, uploadAvatarRoute);
   
   // Note: upload-avatar-base64 is handled in api/index.ts for Vercel compatibility
@@ -35,8 +36,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${apiPrefix}/positions/:id`, getPositionByIdRoute);
 
   // Vote routes
-  app.post(`${apiPrefix}/votes`, submitVotesRoute);
-  app.get(`${apiPrefix}/votes/my-votes`, getMyVotesRoute);
+  app.post(`${apiPrefix}/votes`, jwtAuth, submitVotesRoute);
+  app.get(`${apiPrefix}/votes/my-votes`, jwtAuth, getMyVotesRoute);
 
   // Results routes
   app.get(`${apiPrefix}/results`, getResultsRoute);
@@ -47,21 +48,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin routes
   app.post(`${apiPrefix}/admin/login`, adminLoginRoute);
-  app.get(`${apiPrefix}/admin/me`, adminMeRoute);
+  app.get(`${apiPrefix}/admin/me`, jwtAuth, requireAdmin, adminMeRoute);
   
   // Protected admin routes
-  app.post(`${apiPrefix}/admin/elections`, requireAdmin, createElectionRoute);
-  app.put(`${apiPrefix}/admin/elections/:id/status`, requireAdmin, updateElectionStatusRoute);
-  app.put(`${apiPrefix}/admin/elections/:id/dates`, requireAdmin, updateElectionDatesRoute);
-  app.post(`${apiPrefix}/admin/positions`, requireAdmin, createPositionRoute);
-  app.put(`${apiPrefix}/admin/positions/:id`, requireAdmin, updatePositionRoute);
-  app.delete(`${apiPrefix}/admin/positions/:id`, requireAdmin, deletePositionRoute);
-  app.post(`${apiPrefix}/admin/candidates`, requireAdmin, createCandidateRoute);
-  app.put(`${apiPrefix}/admin/candidates/:id`, requireAdmin, updateCandidateRoute);
-  app.delete(`${apiPrefix}/admin/candidates/:id`, requireAdmin, deleteCandidateRoute);
-  app.get(`${apiPrefix}/admin/votes`, requireAdmin, getAllVotesRoute);
-  app.get(`${apiPrefix}/admin/students`, requireAdmin, getStudentsRoute);
-  app.post(`${apiPrefix}/admin/students`, requireAdmin, createStudentRoute);
+  app.post(`${apiPrefix}/admin/elections`, jwtAuth, requireAdmin, createElectionRoute);
+  app.put(`${apiPrefix}/admin/elections/:id/status`, jwtAuth, requireAdmin, updateElectionStatusRoute);
+  app.put(`${apiPrefix}/admin/elections/:id/dates`, jwtAuth, requireAdmin, updateElectionDatesRoute);
+  app.post(`${apiPrefix}/admin/positions`, jwtAuth, requireAdmin, createPositionRoute);
+  app.put(`${apiPrefix}/admin/positions/:id`, jwtAuth, requireAdmin, updatePositionRoute);
+  app.delete(`${apiPrefix}/admin/positions/:id`, jwtAuth, requireAdmin, deletePositionRoute);
+  app.post(`${apiPrefix}/admin/candidates`, jwtAuth, requireAdmin, createCandidateRoute);
+  app.put(`${apiPrefix}/admin/candidates/:id`, jwtAuth, requireAdmin, updateCandidateRoute);
+  app.delete(`${apiPrefix}/admin/candidates/:id`, jwtAuth, requireAdmin, deleteCandidateRoute);
+  app.get(`${apiPrefix}/admin/votes`, jwtAuth, requireAdmin, getAllVotesRoute);
+  app.get(`${apiPrefix}/admin/students`, jwtAuth, requireAdmin, getStudentsRoute);
+  app.post(`${apiPrefix}/admin/students`, jwtAuth, requireAdmin, createStudentRoute);
 
   const httpServer = createServer(app);
 

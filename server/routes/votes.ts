@@ -26,7 +26,8 @@ declare global {
  * Body: { votes: { positionId: candidateId, ... } }
  */
 export async function submitVotesRoute(req: Request, res: Response) {
-  if (!req.isAuthenticated() || !req.user) {
+  const user = (req as any).user;
+  if (!user) {
     return res.status(401).json({ message: "Authentication required" });
   }
 
@@ -41,10 +42,10 @@ export async function submitVotesRoute(req: Request, res: Response) {
     }
 
     const { votes } = validation.data;
-    const studentId = req.user.id;
+    const studentId = user.id;
 
     // Check if student has already voted
-    if (req.user.hasVoted === true) {
+    if (user.hasVoted === true) {
       return res.status(403).json({
         message: "You have already voted. Each student can only vote once.",
       });
@@ -115,15 +116,12 @@ export async function submitVotesRoute(req: Request, res: Response) {
     }
 
     // Mark student as having voted
-    if (!req.user.indexNumber) {
+    if (!user.indexNumber) {
       return res.status(400).json({
         message: "Invalid user: index number is required for voting",
       });
     }
-    await storage.updateStudentHasVoted(req.user.indexNumber, true);
-
-    // Update session user data
-    req.user.hasVoted = true;
+    await storage.updateStudentHasVoted(user.indexNumber, true);
 
     return res.json({
       message: "Votes submitted successfully",
@@ -143,12 +141,13 @@ export async function submitVotesRoute(req: Request, res: Response) {
  * GET /api/votes/my-votes
  */
 export async function getMyVotesRoute(req: Request, res: Response) {
-  if (!req.isAuthenticated() || !req.user) {
+  const user = (req as any).user;
+  if (!user) {
     return res.status(401).json({ message: "Authentication required" });
   }
 
   try {
-    const votes = await storage.getVotesByStudent(req.user.id);
+    const votes = await storage.getVotesByStudent(user.id);
     return res.json({ votes });
   } catch (error) {
     console.error("Error fetching votes:", error);

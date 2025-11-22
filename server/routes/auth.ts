@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import passport from "../auth/passport.js";
 import { loginStudentSchema } from "../../shared/schema.js";
 import { storage } from "../storage.js";
+import { signToken } from "../utils/jwt.js";
 import { z } from "zod";
 
 // Type augmentation for Express Request with user
@@ -36,7 +37,7 @@ export function loginRoute(req: Request, res: Response, next: any) {
   }
 
   // Use Passport to authenticate
-  passport.authenticate("local-student", (err: any, user: Express.User, info: any) => {
+  passport.authenticate("local-student", async (err: any, user: Express.User, info: any) => {
     if (err) {
       return next(err);
     }
@@ -46,25 +47,35 @@ export function loginRoute(req: Request, res: Response, next: any) {
       });
     }
 
-    // Log the user in
-    req.logIn(user, (loginErr) => {
-      if (loginErr) {
-        return next(loginErr);
-      }
+    // Generate JWT token
+    const token = signToken({
+      id: user.id,
+      type: "student",
+    });
 
-      // Return user data (without password)
-      return res.json({
-        message: "Login successful",
-        user: {
-          id: user.id,
-          indexNumber: user.indexNumber,
-          fullName: user.fullName,
-          email: user.email,
-          year: user.year,
-          profilePicture: user.profilePicture,
-          hasVoted: user.hasVoted,
-        },
-      });
+    // Set token in HTTP-only cookie
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: "/",
+    });
+
+    // Return user data and token
+    return res.json({
+      message: "Login successful",
+      token, // Also return token in response for client-side storage if needed
+      user: {
+        id: user.id,
+        indexNumber: user.indexNumber,
+        fullName: user.fullName,
+        email: user.email,
+        year: user.year,
+        profilePicture: user.profilePicture,
+        hasVoted: user.hasVoted,
+      },
     });
   })(req, res, next);
 }
@@ -74,21 +85,25 @@ export function loginRoute(req: Request, res: Response, next: any) {
  * POST /api/auth/logout
  */
 export function logoutRoute(req: Request, res: Response) {
-  req.logout((err) => {
-    if (err) {
-      return res.status(500).json({ message: "Logout failed" });
-    }
-    res.json({ message: "Logout successful" });
+  // Clear token cookie
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
   });
+  
+  res.json({ message: "Logout successful" });
 }
 
 /**
  * Get current user endpoint
  * GET /api/auth/me
+ * Requires JWT authentication middleware
  */
 export function meRoute(req: Request, res: Response) {
-  if (req.isAuthenticated() && req.user) {
-    const user = req.user;
+  const user = (req as any).user;
+  if (user) {
     return res.json({
       user: {
         id: user.id,
@@ -109,7 +124,8 @@ export function meRoute(req: Request, res: Response) {
  * PUT /api/auth/profile
  */
 export async function updateProfileRoute(req: Request, res: Response) {
-  if (!req.isAuthenticated() || !req.user) {
+  const user = (req as any).user;
+  if (!user) {
     return res.status(401).json({ message: "Authentication required" });
   }
 
@@ -130,13 +146,7 @@ export async function updateProfileRoute(req: Request, res: Response) {
   }
 
   try {
-    const updatedStudent = await storage.updateStudent(req.user.id, validation.data);
-    
-    // Update session user data
-    req.user.fullName = updatedStudent.fullName;
-    req.user.email = updatedStudent.email;
-    req.user.year = updatedStudent.year;
-    req.user.profilePicture = updatedStudent.profilePicture;
+    const updatedStudent = await storage.updateStudent(user.id, validation.data);
 
     return res.json({
       message: "Profile updated successfully",
@@ -160,9 +170,11 @@ export async function updateProfileRoute(req: Request, res: Response) {
 
 /**
  * Middleware to check if user is authenticated
+ * Note: Use jwtAuth middleware from server/middleware/jwtAuth.ts instead
  */
 export function requireAuth(req: Request, res: Response, next: any) {
-  if (req.isAuthenticated()) {
+  const user = (req as any).user;
+  if (user && (req as any).isAuthenticated && (req as any).isAuthenticated()) {
     return next();
   }
   return res.status(401).json({ message: "Authentication required" });

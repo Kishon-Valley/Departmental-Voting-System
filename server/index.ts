@@ -1,7 +1,6 @@
 import "../env.js";
 
 import express, { type Request, Response, NextFunction } from "express";
-import cookieSession from "cookie-session";
 import passport from "./auth/passport.js";
 import { registerRoutes } from "./routes.js";
 import { setupVite, serveStatic, log } from "./vite.js";
@@ -23,40 +22,8 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
-// Cookie-session configuration (stateless, works across lambda instances)
-app.use(
-  cookieSession({
-    name: "session",
-    keys: [process.env.SESSION_SECRET || "change-me"],
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    secure: process.env.NODE_ENV === "production",
-    httpOnly: true,
-    sameSite: "lax",
-  }),
-);
-
-// Initialize Passport and restore authentication state from session
-// Patch cookie-session object so Passport can call req.session.regenerate/destroy
-app.use((req, _res, next) => {
-  if (req.session && typeof (req.session as any).regenerate !== 'function') {
-    (req.session as any).regenerate = (cb?: (err?: any) => void) => {
-      cb?.();
-    };
-  }
-  if (req.session && typeof (req.session as any).destroy !== 'function') {
-    (req.session as any).destroy = (cb?: (err?: any) => void) => {
-      req.session = null as any;
-      cb?.();
-    };
-  }
-  if (req.session && typeof (req.session as any).save !== 'function') {
-    (req.session as any).save = (cb?: (err?: any) => void) => cb?.();
-  }
-  next();
-});
-
+// Initialize Passport (for authentication only, not sessions)
 app.use(passport.initialize());
-app.use(passport.session());
 
 app.use((req, res, next) => {
   const start = Date.now();

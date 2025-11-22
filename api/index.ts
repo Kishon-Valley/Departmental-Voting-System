@@ -9,7 +9,8 @@ import { getPositionsRoute, getPositionByIdRoute } from "../server/routes/positi
 import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
-import { adminLoginRoute, adminMeRoute, requireAdmin, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
+import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
+import { jwtAuth, optionalJwtAuth, requireAuth, requireAdmin } from "../server/middleware/jwtAuth.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
 
@@ -64,10 +65,10 @@ async function getApp(): Promise<express.Application> {
   app.post("/api/auth/login", loginRoute);
   app.post("/auth/logout", logoutRoute);
   app.post("/api/auth/logout", logoutRoute);
-  app.get("/auth/me", meRoute);
-  app.get("/api/auth/me", meRoute);
-  app.put("/auth/profile", updateProfileRoute);
-  app.put("/api/auth/profile", updateProfileRoute);
+  app.get("/auth/me", jwtAuth, meRoute);
+  app.get("/api/auth/me", jwtAuth, meRoute);
+  app.put("/auth/profile", jwtAuth, updateProfileRoute);
+  app.put("/api/auth/profile", jwtAuth, updateProfileRoute);
   // File upload routes
   app.post("/auth/upload-avatar", uploadAvatarRoute);
   app.post("/api/auth/upload-avatar", uploadAvatarRoute);
@@ -90,10 +91,10 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/positions/:id", getPositionByIdRoute);
 
   // Vote routes
-  app.post("/votes", submitVotesRoute);
-  app.post("/api/votes", submitVotesRoute);
-  app.get("/votes/my-votes", getMyVotesRoute);
-  app.get("/api/votes/my-votes", getMyVotesRoute);
+  app.post("/votes", jwtAuth, submitVotesRoute);
+  app.post("/api/votes", jwtAuth, submitVotesRoute);
+  app.get("/votes/my-votes", jwtAuth, getMyVotesRoute);
+  app.get("/api/votes/my-votes", jwtAuth, getMyVotesRoute);
 
   // Results routes
   app.get("/results", getResultsRoute);
@@ -108,34 +109,34 @@ async function getApp(): Promise<express.Application> {
   // Admin routes
   app.post("/admin/login", adminLoginRoute);
   app.post("/api/admin/login", adminLoginRoute);
-  app.get("/admin/me", adminMeRoute);
-  app.get("/api/admin/me", adminMeRoute);
+  app.get("/admin/me", jwtAuth, requireAdmin, adminMeRoute);
+  app.get("/api/admin/me", jwtAuth, requireAdmin, adminMeRoute);
   
   // Protected admin routes
-  app.post("/admin/elections", requireAdmin, createElectionRoute);
-  app.post("/api/admin/elections", requireAdmin, createElectionRoute);
-  app.put("/admin/elections/:id/status", requireAdmin, updateElectionStatusRoute);
-  app.put("/api/admin/elections/:id/status", requireAdmin, updateElectionStatusRoute);
-  app.put("/admin/elections/:id/dates", requireAdmin, updateElectionDatesRoute);
-  app.put("/api/admin/elections/:id/dates", requireAdmin, updateElectionDatesRoute);
-  app.post("/admin/positions", requireAdmin, createPositionRoute);
-  app.post("/api/admin/positions", requireAdmin, createPositionRoute);
-  app.put("/admin/positions/:id", requireAdmin, updatePositionRoute);
-  app.put("/api/admin/positions/:id", requireAdmin, updatePositionRoute);
-  app.delete("/admin/positions/:id", requireAdmin, deletePositionRoute);
-  app.delete("/api/admin/positions/:id", requireAdmin, deletePositionRoute);
-  app.post("/admin/candidates", requireAdmin, createCandidateRoute);
-  app.post("/api/admin/candidates", requireAdmin, createCandidateRoute);
-  app.put("/admin/candidates/:id", requireAdmin, updateCandidateRoute);
-  app.put("/api/admin/candidates/:id", requireAdmin, updateCandidateRoute);
-  app.delete("/admin/candidates/:id", requireAdmin, deleteCandidateRoute);
-  app.delete("/api/admin/candidates/:id", requireAdmin, deleteCandidateRoute);
-  app.get("/admin/votes", requireAdmin, getAllVotesRoute);
-  app.get("/api/admin/votes", requireAdmin, getAllVotesRoute);
-  app.get("/admin/students", requireAdmin, getStudentsRoute);
-  app.get("/api/admin/students", requireAdmin, getStudentsRoute);
-  app.post("/admin/students", requireAdmin, createStudentRoute);
-  app.post("/api/admin/students", requireAdmin, createStudentRoute);
+  app.post("/admin/elections", jwtAuth, requireAdmin, createElectionRoute);
+  app.post("/api/admin/elections", jwtAuth, requireAdmin, createElectionRoute);
+  app.put("/admin/elections/:id/status", jwtAuth, requireAdmin, updateElectionStatusRoute);
+  app.put("/api/admin/elections/:id/status", jwtAuth, requireAdmin, updateElectionStatusRoute);
+  app.put("/admin/elections/:id/dates", jwtAuth, requireAdmin, updateElectionDatesRoute);
+  app.put("/api/admin/elections/:id/dates", jwtAuth, requireAdmin, updateElectionDatesRoute);
+  app.post("/admin/positions", jwtAuth, requireAdmin, createPositionRoute);
+  app.post("/api/admin/positions", jwtAuth, requireAdmin, createPositionRoute);
+  app.put("/admin/positions/:id", jwtAuth, requireAdmin, updatePositionRoute);
+  app.put("/api/admin/positions/:id", jwtAuth, requireAdmin, updatePositionRoute);
+  app.delete("/admin/positions/:id", jwtAuth, requireAdmin, deletePositionRoute);
+  app.delete("/api/admin/positions/:id", jwtAuth, requireAdmin, deletePositionRoute);
+  app.post("/admin/candidates", jwtAuth, requireAdmin, createCandidateRoute);
+  app.post("/api/admin/candidates", jwtAuth, requireAdmin, createCandidateRoute);
+  app.put("/admin/candidates/:id", jwtAuth, requireAdmin, updateCandidateRoute);
+  app.put("/api/admin/candidates/:id", jwtAuth, requireAdmin, updateCandidateRoute);
+  app.delete("/admin/candidates/:id", jwtAuth, requireAdmin, deleteCandidateRoute);
+  app.delete("/api/admin/candidates/:id", jwtAuth, requireAdmin, deleteCandidateRoute);
+  app.get("/admin/votes", jwtAuth, requireAdmin, getAllVotesRoute);
+  app.get("/api/admin/votes", jwtAuth, requireAdmin, getAllVotesRoute);
+  app.get("/admin/students", jwtAuth, requireAdmin, getStudentsRoute);
+  app.get("/api/admin/students", jwtAuth, requireAdmin, getStudentsRoute);
+  app.post("/admin/students", jwtAuth, requireAdmin, createStudentRoute);
+  app.post("/api/admin/students", jwtAuth, requireAdmin, createStudentRoute);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -454,6 +455,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         statusCode = status;
         res.statusCode = status;
       }
+      return this;
+    },
+    cookie: function(name: string, value: string, options?: any) {
+      // Handle cookie setting for JWT tokens
+      const cookieOptions = options || {};
+      let cookieString = `${name}=${value}`;
+      
+      if (cookieOptions.maxAge) {
+        cookieString += `; Max-Age=${Math.floor(cookieOptions.maxAge / 1000)}`;
+      }
+      if (cookieOptions.domain) {
+        cookieString += `; Domain=${cookieOptions.domain}`;
+      }
+      if (cookieOptions.path) {
+        cookieString += `; Path=${cookieOptions.path}`;
+      }
+      if (cookieOptions.secure) {
+        cookieString += `; Secure`;
+      }
+      if (cookieOptions.httpOnly) {
+        cookieString += `; HttpOnly`;
+      }
+      if (cookieOptions.sameSite) {
+        cookieString += `; SameSite=${cookieOptions.sameSite}`;
+      }
+      
+      // Append to existing Set-Cookie header or create new one
+      const existing = responseHeaders['set-cookie'] || [];
+      const cookies = Array.isArray(existing) ? [...existing, cookieString] : [cookieString];
+      responseHeaders['set-cookie'] = cookies;
+      res.setHeader('Set-Cookie', cookies);
+      return this;
+    },
+    clearCookie: function(name: string, options?: any) {
+      // Clear cookie by setting it with expired date
+      const cookieOptions = options || {};
+      let cookieString = `${name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      
+      if (cookieOptions.domain) {
+        cookieString += `; Domain=${cookieOptions.domain}`;
+      }
+      if (cookieOptions.path) {
+        cookieString += `; Path=${cookieOptions.path}`;
+      }
+      if (cookieOptions.secure) {
+        cookieString += `; Secure`;
+      }
+      if (cookieOptions.httpOnly) {
+        cookieString += `; HttpOnly`;
+      }
+      if (cookieOptions.sameSite) {
+        cookieString += `; SameSite=${cookieOptions.sameSite}`;
+      }
+      
+      // Append to existing Set-Cookie header or create new one
+      const existing = responseHeaders['set-cookie'] || [];
+      const cookies = Array.isArray(existing) ? [...existing, cookieString] : [cookieString];
+      responseHeaders['set-cookie'] = cookies;
+      res.setHeader('Set-Cookie', cookies);
       return this;
     },
   } as any;

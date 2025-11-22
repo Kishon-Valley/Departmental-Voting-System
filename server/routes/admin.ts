@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import passport from "../auth/passport.js";
 import { insertStudentSchema, loginAdminSchema } from "../../shared/schema.js";
 import { storage } from "../storage.js";
+import { signToken } from "../utils/jwt.js";
 import { z } from "zod";
 
 // Type augmentation for Express Request with admin user
@@ -34,7 +35,7 @@ export function adminLoginRoute(req: Request, res: Response, next: any) {
     });
   }
 
-  passport.authenticate("local-admin", (err: any, user: Express.User, info: any) => {
+  passport.authenticate("local-admin", async (err: any, user: Express.User, info: any) => {
     if (err) {
       return next(err);
     }
@@ -44,19 +45,31 @@ export function adminLoginRoute(req: Request, res: Response, next: any) {
       });
     }
 
-    req.logIn(user, (loginErr) => {
-      if (loginErr) {
-        return next(loginErr);
-      }
+    // Generate JWT token
+    const token = signToken({
+      id: user.id,
+      type: "admin",
+    });
 
-      return res.json({
-        message: "Login successful",
-        user: {
-          id: user.id,
-          username: user.username,
-          type: "admin",
-        },
-      });
+    // Set token in HTTP-only cookie
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: "/",
+    });
+
+    // Return user data and token
+    return res.json({
+      message: "Login successful",
+      token, // Also return token in response for client-side storage if needed
+      user: {
+        id: user.id,
+        username: user.username,
+        type: "admin",
+      },
     });
   })(req, res, next);
 }
@@ -66,11 +79,12 @@ export function adminLoginRoute(req: Request, res: Response, next: any) {
  * GET /api/admin/me
  */
 export function adminMeRoute(req: Request, res: Response) {
-  if (req.isAuthenticated() && req.user && (req.user as any).type === "admin") {
+  const user = (req as any).user;
+  if (user && user.type === "admin") {
     return res.json({
       user: {
-        id: req.user.id,
-        username: (req.user as any).username,
+        id: user.id,
+        username: user.username,
         type: "admin",
       },
     });
@@ -80,9 +94,11 @@ export function adminMeRoute(req: Request, res: Response) {
 
 /**
  * Middleware to check if user is admin
+ * Note: Use requireAdmin from server/middleware/jwtAuth.ts instead
  */
 export function requireAdmin(req: Request, res: Response, next: any) {
-  if (req.isAuthenticated() && req.user && (req.user as any).type === "admin") {
+  const user = (req as any).user;
+  if (user && user.type === "admin") {
     return next();
   }
   return res.status(403).json({ message: "Admin access required" });
