@@ -22,7 +22,7 @@ export default function HeroSection() {
     },
     {
       image: ucc4,
-      title: "Excellence in Medical Laboratory Science",
+      title: "Excellence in Laboratory Science",
       subtitle: "Join us in advancing diagnostic innovation and professional development at the University of Cape Coast."
     },
     {
