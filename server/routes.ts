@@ -22,7 +22,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(`${apiPrefix}/auth/logout`, logoutRoute);
   app.get(`${apiPrefix}/auth/me`, jwtAuth, meRoute);
   app.put(`${apiPrefix}/auth/profile`, jwtAuth, updateProfileRoute);
-  app.post(`${apiPrefix}/auth/upload-avatar`, uploadMiddleware, uploadAvatarRoute);
+  app.post(`${apiPrefix}/auth/upload-avatar`, jwtAuth, uploadMiddleware, uploadAvatarRoute);
   
   // Note: upload-avatar-base64 is handled in api/index.ts for Vercel compatibility
 

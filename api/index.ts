@@ -69,12 +69,12 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/auth/me", jwtAuth, meRoute);
   app.put("/auth/profile", jwtAuth, updateProfileRoute);
   app.put("/api/auth/profile", jwtAuth, updateProfileRoute);
-  // File upload routes
-  app.post("/auth/upload-avatar", uploadAvatarRoute);
-  app.post("/api/auth/upload-avatar", uploadAvatarRoute);
+  // File upload routes (protected with JWT authentication)
+  app.post("/auth/upload-avatar", jwtAuth, uploadAvatarRoute);
+  app.post("/api/auth/upload-avatar", jwtAuth, uploadAvatarRoute);
   // Base64 upload route (for Vercel compatibility)
-  app.post("/auth/upload-avatar-base64", uploadAvatarBase64Route);
-  app.post("/api/auth/upload-avatar-base64", uploadAvatarBase64Route);
+  app.post("/auth/upload-avatar-base64", jwtAuth, uploadAvatarBase64Route);
+  app.post("/api/auth/upload-avatar-base64", jwtAuth, uploadAvatarBase64Route);
 
   // Candidate routes
   app.get("/candidates", getCandidatesRoute);

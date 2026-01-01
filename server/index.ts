@@ -4,6 +4,15 @@ import express, { type Request, Response, NextFunction } from "express";
 import passport from "./auth/passport.js";
 import { registerRoutes } from "./routes.js";
 import { setupVite, serveStatic, log } from "./vite.js";
+import { validateEnvironmentVariables } from "./utils/envValidation.js";
+
+// Validate environment variables at startup
+try {
+  validateEnvironmentVariables();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "Environment validation failed");
+  process.exit(1);
+}
 
 const app = express();
 app.set("trust proxy", 1);

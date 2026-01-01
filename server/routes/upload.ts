@@ -41,9 +41,11 @@ export const uploadMiddleware = upload.single('avatar');
 /**
  * Upload profile picture endpoint
  * POST /api/auth/upload-avatar
+ * Requires JWT authentication middleware
  */
 export async function uploadAvatarRoute(req: Request, res: Response) {
-  if (!req.isAuthenticated() || !req.user) {
+  const user = (req as any).user;
+  if (!user) {
     return res.status(401).json({ message: "Authentication required" });
   }
 
@@ -54,10 +56,19 @@ export async function uploadAvatarRoute(req: Request, res: Response) {
 
   try {
     const file = req.file;
-    const userId = req.user.id;
+    const userId = user.id;
     
-    // Generate unique filename
-    const fileExt = file.originalname.split('.').pop() || 'jpg';
+    // Sanitize and generate unique filename
+    // Remove any path separators and special characters from original filename
+    const sanitizedOriginalName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const fileExt = sanitizedOriginalName.split('.').pop()?.toLowerCase() || 'jpg';
+    // Validate file extension
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!allowedExtensions.includes(fileExt)) {
+      return res.status(400).json({ 
+        message: "Invalid file extension. Only JPEG, PNG, and WebP images are allowed." 
+      });
+    }
     const fileName = `${userId}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
 
@@ -99,20 +110,15 @@ export async function uploadAvatarRoute(req: Request, res: Response) {
 /**
  * Upload profile picture endpoint (base64 version for Vercel compatibility)
  * POST /api/auth/upload-avatar-base64
+ * Requires JWT authentication middleware
  */
 export async function uploadAvatarBase64Route(req: Request, res: Response) {
-  if (!req.isAuthenticated() || !req.user) {
+  const user = (req as any).user;
+  if (!user) {
     return res.status(401).json({ message: "Authentication required" });
   }
 
   try {
-    // Log request body for debugging
-    console.log('Base64 upload request:', {
-      bodyType: typeof req.body,
-      bodyKeys: req.body ? Object.keys(req.body) : [],
-      hasFile: !!(req.body as any)?.file,
-    });
-
     const { file, filename, mimeType } = req.body || {};
 
     if (!file || typeof file !== 'string') {
@@ -167,10 +173,24 @@ export async function uploadAvatarBase64Route(req: Request, res: Response) {
       });
     }
 
-    const userId = req.user.id;
+    const userId = user.id;
     
-    // Generate unique filename
-    const fileExt = filename?.split('.').pop() || contentType.split('/')[1] || 'jpg';
+    // Sanitize and generate unique filename
+    let fileExt: string;
+    if (filename) {
+      // Sanitize filename and extract extension
+      const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+      fileExt = sanitizedFilename.split('.').pop()?.toLowerCase() || contentType.split('/')[1] || 'jpg';
+    } else {
+      fileExt = contentType.split('/')[1] || 'jpg';
+    }
+    // Validate file extension
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!allowedExtensions.includes(fileExt)) {
+      return res.status(400).json({ 
+        message: "Invalid file extension. Only JPEG, PNG, and WebP images are allowed." 
+      });
+    }
     const fileName = `${userId}-${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
 

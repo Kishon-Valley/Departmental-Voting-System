@@ -1,6 +1,16 @@
-import { createHmac, randomBytes } from "crypto";
+import { createHmac } from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "change-me-secret-key";
+// Require JWT_SECRET in production, allow fallback only in development
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "JWT_SECRET or SESSION_SECRET must be set in production. " +
+      "This is required for secure token signing."
+    );
+  }
+  console.warn("⚠️  WARNING: Using default JWT_SECRET. This is insecure and should only be used in development.");
+  return "change-me-secret-key";
+})();
 const JWT_EXPIRES_IN = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 export interface JWTPayload {
