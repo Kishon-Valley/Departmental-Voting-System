@@ -320,6 +320,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Create Express-compatible request object
   // We need to create a proper object that Express middleware can modify
+  // Ensure cookies are properly passed through (normalize header keys to lowercase)
+  const headers: Record<string, string | string[]> = {};
+  Object.keys(req.headers).forEach(key => {
+    const lowerKey = key.toLowerCase();
+    headers[lowerKey] = req.headers[key] as string | string[];
+  });
+  
+  // Ensure cookie header is preserved (important for authentication)
+  // Vercel might send it in different cases
+  if (req.headers.cookie && !headers.cookie) {
+    headers.cookie = Array.isArray(req.headers.cookie) 
+      ? req.headers.cookie.join('; ') 
+      : req.headers.cookie;
+  }
+  
+  // Also check for Cookie (capital C)
+  if (req.headers.Cookie && !headers.cookie) {
+    headers.cookie = Array.isArray(req.headers.Cookie)
+      ? req.headers.Cookie.join('; ')
+      : req.headers.Cookie;
+  }
+  
   const expressReq: any = {
     method: req.method || 'GET',
     url: path,
@@ -328,7 +350,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     query: req.query || {},
     body: finalBody,
     file: parsedFile, // Attach parsed file for multer compatibility
-    headers: req.headers,
+    headers: headers,
     ip: (() => {
       const forwardedFor = req.headers['x-forwarded-for'];
       if (typeof forwardedFor === 'string') {
@@ -368,10 +390,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return 'unknown';
     })(),
     get: function(name: string) {
-      return this.headers[name.toLowerCase()];
+      const lowerName = name.toLowerCase();
+      // Special handling for cookie header (case-insensitive)
+      if (lowerName === 'cookie' || lowerName === 'authorization') {
+        return this.headers[lowerName] || this.headers[name];
+      }
+      return this.headers[lowerName];
     },
     header: function(name: string) {
-      return this.headers[name.toLowerCase()];
+      const lowerName = name.toLowerCase();
+      // Special handling for cookie header (case-insensitive)
+      if (lowerName === 'cookie' || lowerName === 'authorization') {
+        return this.headers[lowerName] || this.headers[name];
+      }
+      return this.headers[lowerName];
     },
     // These will be set by Passport middleware
     isAuthenticated: function() {
