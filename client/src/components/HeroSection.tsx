@@ -22,7 +22,7 @@ export default function HeroSection() {
     },
     {
       image: ucc4,
-      title: "Excellence in Medical Laboratory Science",
+      title: "Excellence in Laboratory Science",
       subtitle: "Join us in advancing diagnostic innovation and professional development at the University of Cape Coast."
     },
     {
@@ -33,7 +33,7 @@ export default function HeroSection() {
     {
       image: ucc2023,
       title: "Building Tomorrow's Laboratory Leaders",
-      subtitle: "Vote for candidates who will champion laboratory safety, research excellence, and student welfare."
+      subtitle: "Vote for candidates who will elevate LABSTAG UCC, research excellence, and student welfare."
     }
   ];
 

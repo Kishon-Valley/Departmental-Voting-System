@@ -43,7 +43,7 @@ export default function Contact() {
                     <div>
                       <p className="font-medium mb-1">Phone</p>
                       <a href="tel:+233332132440" className="text-sm text-muted-foreground hover:text-primary" data-testid="link-phone">
-                        +233 33 213 2440
+                        +233 556349722
                       </a>
                     </div>
                   </div>
@@ -54,7 +54,7 @@ export default function Contact() {
                       <p className="font-medium mb-1">Office Location</p>
                       <p className="text-sm text-muted-foreground" data-testid="text-address">
                         Laboratory Technology Department<br />
-                        School of Allied Health Sciences<br />
+                        School of Pysical Sciences<br />
                         University of Cape Coast, Ghana
                       </p>
                     </div>
