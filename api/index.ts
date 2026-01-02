@@ -10,6 +10,7 @@ import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
 import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
+import { uploadExcelStudentsRoute, uploadExcelMiddleware } from "../server/routes/adminExcel.js";
 import { jwtAuth, optionalJwtAuth, requireAuth, requireAdmin } from "../server/middleware/jwtAuth.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -137,6 +138,8 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/admin/students", jwtAuth, requireAdmin, getStudentsRoute);
   app.post("/admin/students", jwtAuth, requireAdmin, createStudentRoute);
   app.post("/api/admin/students", jwtAuth, requireAdmin, createStudentRoute);
+  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
+  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -215,7 +218,8 @@ async function parseMultipartFormData(req: VercelRequest): Promise<{ body: any; 
       });
       
       fileStream.on('end', () => {
-        if (!file) {
+        // Handle multiple files (for Excel upload, we only expect one)
+        if (fieldname === 'excelFile' || fieldname === 'avatar') {
           file = {
             fieldname,
             originalname: filename,
@@ -274,7 +278,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let parsedBody = req.body || {};
   let parsedFile: any = undefined;
   
-  if (req.method === 'POST' && (path.includes('/upload-avatar') && !path.includes('base64'))) {
+  if (req.method === 'POST' && (
+    (path.includes('/upload-avatar') && !path.includes('base64')) ||
+    path.includes('/upload-excel')
+  )) {
     // Log what we're receiving for debugging
     console.log('Upload request details:', {
       contentType: req.headers['content-type'],
