@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { storage } from "../storage.js";
 import { parseExcelFile, convertToInsertStudents } from "../utils/excelParser.js";
@@ -25,7 +25,23 @@ const upload = multer({
   },
 });
 
-export const uploadExcelMiddleware = upload.single("excelFile");
+// Multer middleware with error handling
+export const uploadExcelMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  upload.single("excelFile")(req, res, (err: any) => {
+    if (err) {
+      // Handle multer errors
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ message: "File too large. Maximum size is 10MB." });
+        }
+        return res.status(400).json({ message: err.message });
+      }
+      // Handle other errors (like fileFilter errors)
+      return res.status(400).json({ message: err.message || "File upload error" });
+    }
+    next();
+  });
+};
 
 /**
  * Get Supabase storage client with service role key
@@ -39,6 +55,10 @@ const getStorageClient = () => {
         persistSession: false,
       },
     });
+  }
+  // Log warning but don't fail - profile pictures will be skipped
+  if (!serviceRoleKey) {
+    console.warn("Supabase credentials not found. File uploads may not work.");
   }
   return supabase;
 };
@@ -124,8 +144,12 @@ async function uploadProfilePicture(
  */
 export async function uploadExcelStudentsRoute(req: Request, res: Response) {
   try {
+    // Check if file was uploaded (multer should have handled this, but double-check)
     if (!req.file) {
-      return res.status(400).json({ message: "No Excel file uploaded" });
+      return res.status(400).json({ 
+        message: "No Excel file uploaded",
+        hint: "Please ensure you're uploading a valid Excel file (.xlsx, .xls, or .ods)"
+      });
     }
 
     // Parse Excel file
@@ -176,10 +200,16 @@ export async function uploadExcelStudentsRoute(req: Request, res: Response) {
             if (profilePictureUrl) {
               await storage.updateStudent(student.id, { profilePicture: profilePictureUrl });
               student.profilePicture = profilePictureUrl;
+            } else {
+              // Log if image upload was skipped (e.g., due to missing credentials)
+              console.warn(`Profile picture upload skipped for ${student.indexNumber} - check Supabase credentials`);
             }
           } catch (imageError) {
             // Log but don't fail student creation if image upload fails
             console.error(`Failed to upload image for ${student.indexNumber}:`, imageError);
+            results.errors.push(
+              `Row ${i + 2}: ${student.indexNumber} - Profile picture upload failed (student created without picture)`
+            );
           }
         }
 

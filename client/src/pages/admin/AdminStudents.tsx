@@ -99,8 +99,22 @@ export default function AdminStudents() {
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to upload Excel file");
+        // Try to parse as JSON, but handle non-JSON responses
+        let errorMessage = `Upload failed with status ${res.status}`;
+        try {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const error = await res.json();
+            errorMessage = error.message || error.error || errorMessage;
+          } else {
+            const text = await res.text();
+            errorMessage = text || res.statusText || errorMessage;
+          }
+        } catch (parseError) {
+          // If parsing fails, use status text
+          errorMessage = res.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       return res.json();
