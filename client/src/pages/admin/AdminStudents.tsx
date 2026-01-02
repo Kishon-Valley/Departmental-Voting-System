@@ -50,7 +50,6 @@ export default function AdminStudents() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [excelFile, setExcelFile] = useState<File | null>(null);
-  const [defaultPassword, setDefaultPassword] = useState("Student@123");
 
   const createStudentMutation = useMutation({
     mutationFn: async () => {
@@ -92,7 +91,6 @@ export default function AdminStudents() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("excelFile", file);
-      formData.append("defaultPassword", defaultPassword);
 
       const res = await fetch("/api/admin/students/upload-excel", {
         method: "POST",
@@ -159,7 +157,7 @@ export default function AdminStudents() {
             <CardHeader>
               <CardTitle>Bulk Upload Students from Excel</CardTitle>
               <CardDescription>
-                Upload an Excel file with student details. Expected columns: NAME, INDEX NO, PHONE NO, EMAIL, PASSPORT SIZED PICTURE
+                Upload an Excel file with student details. Index numbers must follow format: PS/LAB/YY/#### (e.g., PS/LAB/22/0001). Email is required and will be used as the initial password.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -213,20 +211,6 @@ export default function AdminStudents() {
                     </p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="defaultPassword">Default Password</Label>
-                  <Input
-                    id="defaultPassword"
-                    type="text"
-                    value={defaultPassword}
-                    onChange={(e) => setDefaultPassword(e.target.value)}
-                    placeholder="Student@123"
-                    disabled={uploadExcelMutation.isPending}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This password will be set for all students. They should change it after first login.
-                  </p>
-                </div>
                 <div className="rounded-lg border border-dashed p-4 bg-muted/50">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <FileSpreadsheet className="h-4 w-4" />
@@ -234,10 +218,14 @@ export default function AdminStudents() {
                   </div>
                   <div className="mt-2 text-xs text-muted-foreground space-y-1 ml-6">
                     <p>Column 1: NAME (required)</p>
-                    <p>Column 2: INDEX NO (required)</p>
+                    <p>Column 2: INDEX NO (required) - Format: PS/LAB/YY/#### (e.g., PS/LAB/22/0001)</p>
                     <p>Column 3: PHONE NO (optional)</p>
-                    <p>Column 4: EMAIL (optional)</p>
+                    <p>Column 4: EMAIL (required - used as password)</p>
                     <p>Column 5: PASSPORT SIZED PICTURE (optional - base64 or URL)</p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                    <p className="font-semibold">Note: Each student's email will be used as their initial password.</p>
+                    <p>Students should change their password after first login.</p>
                   </div>
                 </div>
               </div>

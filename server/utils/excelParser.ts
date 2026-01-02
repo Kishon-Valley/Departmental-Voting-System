@@ -86,10 +86,22 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
           continue;
         }
 
-        // Validate email format if provided
-        if (email && !isValidEmail(email)) {
+        // Validate index number format: PS/LAB/22/0001
+        if (!isValidIndexNumber(indexNumber)) {
+          errors.push(`Row ${i + 1}: Invalid index number format. Expected format: PS/LAB/YY/#### (e.g., PS/LAB/22/0001)`);
+          continue;
+        }
+
+        // Email is required (used as password)
+        if (!email || email.length === 0) {
+          errors.push(`Row ${i + 1}: EMAIL is required (used as password)`);
+          continue;
+        }
+
+        // Validate email format
+        if (!isValidEmail(email)) {
           errors.push(`Row ${i + 1}: Invalid email format: ${email}`);
-          // Continue anyway, we'll use null for email
+          continue;
         }
 
         students.push({
@@ -116,6 +128,16 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
 }
 
 /**
+ * Validate index number format: PS/LAB/YY/####
+ * Example: PS/LAB/22/0001
+ */
+function isValidIndexNumber(indexNumber: string): boolean {
+  // Pattern: PS/LAB/YY/#### where YY is 2 digits and #### is 4 digits
+  const indexNumberRegex = /^PS\/LAB\/\d{2}\/\d{4}$/;
+  return indexNumberRegex.test(indexNumber);
+}
+
+/**
  * Validate email format
  */
 function isValidEmail(email: string): boolean {
@@ -125,19 +147,28 @@ function isValidEmail(email: string): boolean {
 
 /**
  * Convert parsed Excel data to InsertStudent format
- * Generates a default password for each student (can be changed later)
+ * Uses student's email as password
+ * Note: This function assumes all students have valid emails (validated in parseExcelFile)
  */
 export function convertToInsertStudents(
-  excelStudents: ExcelStudentRow[],
-  defaultPassword: string = "Student@123" // Default password, should be changed by students
+  excelStudents: ExcelStudentRow[]
 ): InsertStudent[] {
-  return excelStudents.map((student) => ({
-    indexNumber: student.indexNumber,
-    fullName: student.name,
-    email: student.email,
-    year: null, // Year not in Excel, can be updated later
-    profilePicture: student.profilePicture, // This could be a URL or base64 data
-    password: defaultPassword,
-  }));
+  return excelStudents
+    .filter((student) => {
+      // Safety check: skip students without email (shouldn't happen if parsing is correct)
+      if (!student.email) {
+        console.warn(`Skipping student ${student.indexNumber}: missing email`);
+        return false;
+      }
+      return true;
+    })
+    .map((student) => ({
+      indexNumber: student.indexNumber,
+      fullName: student.name,
+      email: student.email!, // Non-null assertion since we filtered above
+      year: null, // Year not in Excel, can be updated later
+      profilePicture: student.profilePicture, // This could be a URL or base64 data
+      password: student.email!, // Use email as password
+    }));
 }
 

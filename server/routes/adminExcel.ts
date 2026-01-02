@@ -138,9 +138,8 @@ export async function uploadExcelStudentsRoute(req: Request, res: Response) {
       });
     }
 
-    // Convert to InsertStudent format
-    const defaultPassword = req.body.defaultPassword || "Student@123";
-    const insertStudents = convertToInsertStudents(parseResult.students, defaultPassword);
+    // Convert to InsertStudent format (email is used as password)
+    const insertStudents = convertToInsertStudents(parseResult.students);
 
     // Create students in database
     const results = {
