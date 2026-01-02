@@ -144,11 +144,38 @@ async function uploadProfilePicture(
  */
 export async function uploadExcelStudentsRoute(req: Request, res: Response) {
   try {
-    // Check if file was uploaded (multer should have handled this, but double-check)
+    // Check if file was uploaded
+    // In Vercel, the file is pre-parsed and attached to req.file
+    // In local dev, multer middleware attaches it
     if (!req.file) {
+      console.error('No file in request:', {
+        hasFile: !!req.file,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        contentType: req.headers['content-type'],
+      });
       return res.status(400).json({ 
         message: "No Excel file uploaded",
         hint: "Please ensure you're uploading a valid Excel file (.xlsx, .xls, or .ods)"
+      });
+    }
+
+    // Validate file type if not already validated by multer
+    const allowedMimeTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+      "application/vnd.ms-excel", // .xls
+      "application/vnd.oasis.opendocument.spreadsheet", // .ods
+    ];
+    
+    if (req.file.mimetype && !allowedMimeTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ 
+        message: "Invalid file type. Only Excel files (.xlsx, .xls, .ods) are allowed." 
+      });
+    }
+
+    // Validate file size (10MB limit)
+    if (req.file.size && req.file.size > 10 * 1024 * 1024) {
+      return res.status(400).json({ 
+        message: "File too large. Maximum size is 10MB." 
       });
     }
 

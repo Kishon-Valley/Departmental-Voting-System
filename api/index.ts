@@ -138,8 +138,10 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/admin/students", jwtAuth, requireAdmin, getStudentsRoute);
   app.post("/admin/students", jwtAuth, requireAdmin, createStudentRoute);
   app.post("/api/admin/students", jwtAuth, requireAdmin, createStudentRoute);
-  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
-  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
+  // Excel upload routes - skip multer middleware in Vercel since we parse multipart manually
+  // The file will be attached to req.file by the Vercel handler
+  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
+  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -559,6 +561,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
+    // Add logging for upload-excel requests to debug authentication
+    if (path.includes('/upload-excel')) {
+      console.log('Upload Excel request - checking auth:', {
+        hasCookie: !!headers.cookie,
+        cookieLength: headers.cookie ? String(headers.cookie).length : 0,
+        hasFile: !!parsedFile,
+        method: req.method,
+        path: path,
+      });
+    }
+    
     expressApp(expressReq, expressRes, async (err?: any) => {
       if (err) {
         console.error('Express error:', err);
