@@ -57,11 +57,6 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction) {
     (req as any).user = user;
     (req as any).isAuthenticated = () => true;
 
-    // Debug logging (remove in production if needed)
-    if (process.env.NODE_ENV === "development") {
-      console.log("JWT Auth successful:", { userId: user.id, userType: user.type || "unknown" });
-    }
-
     next();
   } catch (error) {
     console.error("JWT auth error:", error);
@@ -143,12 +138,6 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
     if (user && user.type === "admin") {
       return next();
     }
-    // Debug logging
-    console.warn("Admin check failed:", { 
-      hasUser: !!user, 
-      userType: user?.type, 
-      userId: user?.id 
-    });
     return res.status(403).json({ message: "Admin access required" });
   }
   return res.status(401).json({ message: "Authentication required" });

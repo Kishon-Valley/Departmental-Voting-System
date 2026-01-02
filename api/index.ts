@@ -10,7 +10,7 @@ import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
 import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
-import { uploadExcelStudentsRoute, uploadExcelMiddleware } from "../server/routes/adminExcel.js";
+import { uploadExcelStudentsRoute, uploadExcelStudentsBase64Route, uploadExcelMiddleware } from "../server/routes/adminExcel.js";
 import { jwtAuth, optionalJwtAuth, requireAuth, requireAdmin } from "../server/middleware/jwtAuth.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -138,10 +138,12 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/admin/students", jwtAuth, requireAdmin, getStudentsRoute);
   app.post("/admin/students", jwtAuth, requireAdmin, createStudentRoute);
   app.post("/api/admin/students", jwtAuth, requireAdmin, createStudentRoute);
-  // Excel upload routes - skip multer middleware in Vercel since we parse multipart manually
-  // The file will be attached to req.file by the Vercel handler
-  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
-  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
+  // Excel upload routes
+  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
+  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
+  // Base64 version for Vercel compatibility
+  app.post("/admin/students/upload-excel-base64", jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
+  app.post("/api/admin/students/upload-excel-base64", jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -265,14 +267,6 @@ async function parseMultipartFormData(req: VercelRequest): Promise<{ body: any; 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expressApp = await getApp();
   
-  // Log the incoming request for debugging
-  console.log('Vercel request:', {
-    method: req.method,
-    url: req.url,
-    path: (req as any).path,
-    query: req.query,
-  });
-  
   // Extract the path from Vercel's request
   let path = req.url || '';
   
@@ -284,20 +278,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (path.includes('/upload-avatar') && !path.includes('base64')) ||
     path.includes('/upload-excel')
   )) {
-    // Log what we're receiving for debugging
-    console.log('Upload request details:', {
-      contentType: req.headers['content-type'],
-      bodyType: typeof req.body,
-      bodyIsBuffer: Buffer.isBuffer(req.body),
-      hasRawBody: !!(req as any).rawBody,
-      bodyLength: req.body ? (Buffer.isBuffer(req.body) ? req.body.length : String(req.body).length) : 0,
-    });
-    
     try {
       const parsed = await parseMultipartFormData(req);
       parsedBody = parsed.body;
       parsedFile = parsed.file;
-      console.log('Parsed result:', { hasFile: !!parsedFile, bodyKeys: Object.keys(parsedBody) });
     } catch (error) {
       console.error('Error parsing multipart:', error);
     }
@@ -561,17 +545,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
-    // Add logging for upload-excel requests to debug authentication
-    if (path.includes('/upload-excel')) {
-      console.log('Upload Excel request - checking auth:', {
-        hasCookie: !!headers.cookie,
-        cookieLength: headers.cookie ? String(headers.cookie).length : 0,
-        hasFile: !!parsedFile,
-        method: req.method,
-        path: path,
-      });
-    }
-    
     expressApp(expressReq, expressRes, async (err?: any) => {
       if (err) {
         console.error('Express error:', err);
