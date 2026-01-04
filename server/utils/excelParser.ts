@@ -52,28 +52,37 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
       return { students, errors };
     }
 
-    // Skip header row and process data rows
+    const headerRow = jsonData[0].map(header => 
+      header ? header.toString().trim().toUpperCase().replace(/:$/, '') : ''
+    );
+
+    const columnMap: { [key: string]: number } = {
+      'NAME': headerRow.indexOf('NAME'),
+      'INDEX NO': headerRow.indexOf('INDEX NO'),
+      'PHONE NO': headerRow.indexOf('PHONE NO'),
+      'EMAIL': headerRow.indexOf('EMAIL'),
+      'PASSPORT SIZED PICTURE': headerRow.indexOf('PASSPORT SIZED PICTURE'),
+    };
+
+    if (columnMap['NAME'] === -1 || columnMap['INDEX NO'] === -1 || columnMap['EMAIL'] === -1) {
+      errors.push("Excel file must contain 'NAME', 'INDEX NO', and 'EMAIL' columns.");
+      return { students, errors };
+    }
+
+    // Process data rows
     for (let i = 1; i < jsonData.length; i++) {
       const row = jsonData[i];
       
-      // Skip empty rows
-      if (!row || row.length === 0 || !row[0]) {
+      if (!row || row.length === 0 || !row[columnMap['NAME']]) {
         continue;
       }
 
       try {
-        // Extract data based on column positions
-        // Column 1: NAME (index 0)
-        // Column 2: INDEX NO (index 1)
-        // Column 3: PHONE NO (index 2)
-        // Column 4: EMAIL (index 3)
-        // Column 5: PASSPORT SIZED PICTURE (index 4)
-        
-        const name = row[0]?.toString().trim();
-        const indexNumber = row[1]?.toString().trim();
-        const phoneNumber = row[2]?.toString().trim() || null;
-        const email = row[3]?.toString().trim() || null;
-        const profilePicture = row[4]?.toString().trim() || null;
+        const name = row[columnMap['NAME']]?.toString().trim();
+        const indexNumber = row[columnMap['INDEX NO']]?.toString().trim();
+        const phoneNumber = columnMap['PHONE NO'] !== -1 ? row[columnMap['PHONE NO']]?.toString().trim() || null : null;
+        const email = row[columnMap['EMAIL']]?.toString().trim() || null;
+        const profilePicture = columnMap['PASSPORT SIZED PICTURE'] !== -1 ? row[columnMap['PASSPORT SIZED PICTURE']]?.toString().trim() || null : null;
 
         // Validate required fields
         if (!name || name.length === 0) {
