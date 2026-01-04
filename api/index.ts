@@ -139,8 +139,8 @@ async function getApp(): Promise<express.Application> {
   app.post("/admin/students", jwtAuth, requireAdmin, createStudentRoute);
   app.post("/api/admin/students", jwtAuth, requireAdmin, createStudentRoute);
   // Excel upload routes
-  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
-  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
+  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
+  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
   // Base64 version for Vercel compatibility
   app.post("/admin/students/upload-excel-base64", jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
   app.post("/api/admin/students/upload-excel-base64", jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
@@ -543,6 +543,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     },
   } as any;
   
+  // Manually invoke multer middleware for the specific route
+  if (path.includes('/admin/students/upload-excel')) {
+    await new Promise<void>((resolve, reject) => {
+      uploadExcelMiddleware(expressReq, expressRes, (err: any) => {
+        if (err) {
+          console.error('Multer error:', err);
+          expressRes.status(400).json({ message: err.message });
+          return reject(err);
+        }
+        resolve();
+      });
+    });
+  }
+
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
     expressApp(expressReq, expressRes, async (err?: any) => {
