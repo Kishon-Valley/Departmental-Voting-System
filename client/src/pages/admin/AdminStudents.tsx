@@ -90,7 +90,7 @@ export default function AdminStudents() {
   const uploadExcelMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("excelFile", file);
 
       // Use multipart/form-data upload
       const res = await apiRequest("POST", "/api/admin/students/upload-excel", formData);
