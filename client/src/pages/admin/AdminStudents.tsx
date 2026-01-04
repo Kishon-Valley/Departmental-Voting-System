@@ -89,24 +89,16 @@ export default function AdminStudents() {
 
   const uploadExcelMutation = useMutation({
     mutationFn: async (file: File) => {
-      // Convert file to base64 for Vercel compatibility
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === 'string') {
-            resolve(reader.result);
-          } else {
-            reject(new Error('Failed to read file'));
-          }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const res = await apiRequest("POST", "/api/admin/students/upload-excel-base64", {
-        file: base64,
-        filename: file.name,
-      });
+      // Use multipart/form-data upload
+      const res = await apiRequest("POST", "/api/admin/students/upload-excel", formData);
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: 'An unknown error occurred' }));
+        throw new Error(errorData.message || 'File upload failed');
+      }
 
       return res.json();
     },
