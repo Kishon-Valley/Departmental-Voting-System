@@ -258,17 +258,7 @@ export default function AdminStudents() {
                           return;
                         }
                         
-                        // Validate file size before upload (3.4MB limit)
-                        const MAX_FILE_SIZE = 3.4 * 1024 * 1024;
-                        if (excelFile.size > MAX_FILE_SIZE) {
-                          toast({
-                            title: "File too large",
-                            description: `Maximum file size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(1)}MB. Your file is ${(excelFile.size / 1024 / 1024).toFixed(2)}MB. Please split your Excel file into smaller batches.`,
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                        
+                        // File size validation is handled in the mutation (50MB limit for Supabase Storage)
                         uploadExcelMutation.mutate(excelFile);
                       }}
                       disabled={!excelFile || uploadExcelMutation.isPending}
