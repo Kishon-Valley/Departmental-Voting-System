@@ -10,7 +10,7 @@ import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
 import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
-import { uploadExcelStudentsRoute, uploadExcelStudentsBase64Route, uploadExcelFromStorageRoute, uploadExcelMiddleware } from "../server/routes/adminExcel.js";
+import { uploadExcelFromStorageRoute } from "../server/routes/adminExcel.js";
 import { jwtAuth, optionalJwtAuth, requireAuth, requireAdmin } from "../server/middleware/jwtAuth.js";
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -138,13 +138,7 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/admin/students", jwtAuth, requireAdmin, getStudentsRoute);
   app.post("/admin/students", jwtAuth, requireAdmin, createStudentRoute);
   app.post("/api/admin/students", jwtAuth, requireAdmin, createStudentRoute);
-  // Excel upload routes
-  app.post("/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
-  app.post("/api/admin/students/upload-excel", jwtAuth, requireAdmin, uploadExcelStudentsRoute);
-  // Base64 version for Vercel compatibility
-  app.post("/admin/students/upload-excel-base64", jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
-  app.post("/api/admin/students/upload-excel-base64", jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
-  // Supabase Storage version for large files (bypasses Vercel limits)
+  // Excel upload via Supabase Storage (preferred path, bypasses Vercel limits)
   app.post("/admin/students/upload-excel-from-storage", jwtAuth, requireAdmin, uploadExcelFromStorageRoute);
   app.post("/api/admin/students/upload-excel-from-storage", jwtAuth, requireAdmin, uploadExcelFromStorageRoute);
 
@@ -282,24 +276,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Extract the path from Vercel's request
   let path = req.url || '';
   
-  // Check for payload size issues early (Vercel limit is ~4.5MB)
-  // This is especially important for base64 Excel uploads
-  if (req.method === 'POST' && path.includes('/upload-excel-base64')) {
-    const contentLength = req.headers['content-length'];
-    if (contentLength) {
-      const sizeInMB = parseInt(contentLength, 10) / 1024 / 1024;
-      // Vercel's limit is ~4.5MB, but we want to catch it before processing
-      if (sizeInMB > 4.5) {
-        return res.status(413).json({
-          message: `Request payload too large (${sizeInMB.toFixed(2)}MB). Maximum size is 3.4MB for Excel files. Please split your file into smaller batches.`,
-          error: "FUNCTION_PAYLOAD_TOO_LARGE",
-          receivedSize: sizeInMB,
-          maxSize: 3.4
-        });
-      }
-    }
-  }
-  
   // Track if response has been sent
   let responseEnded = false;
   
@@ -308,8 +284,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let parsedFile: any = undefined;
   
   if (req.method === 'POST' && (
-    (path.includes('/upload-avatar') && !path.includes('base64')) ||
-    path.includes('/upload-excel')
+    path.includes('/upload-avatar') && !path.includes('base64')
   )) {
     try {
       const parsed = await parseMultipartFormData(req);

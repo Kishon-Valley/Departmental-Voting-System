@@ -9,7 +9,7 @@ import { submitVotesRoute, getMyVotesRoute } from "./routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "./routes/results.js";
 import { getElectionStatusRoute } from "./routes/election.js";
 import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "./routes/admin.js";
-import { uploadExcelStudentsRoute, uploadExcelStudentsBase64Route, uploadExcelFromStorageRoute, uploadExcelMiddleware } from "./routes/adminExcel.js";
+import { uploadExcelFromStorageRoute } from "./routes/adminExcel.js";
 import { jwtAuth, requireAuth, requireAdmin } from "./middleware/jwtAuth.js";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -64,8 +64,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${apiPrefix}/admin/votes`, jwtAuth, requireAdmin, getAllVotesRoute);
   app.get(`${apiPrefix}/admin/students`, jwtAuth, requireAdmin, getStudentsRoute);
   app.post(`${apiPrefix}/admin/students`, jwtAuth, requireAdmin, createStudentRoute);
-  app.post(`${apiPrefix}/admin/students/upload-excel`, jwtAuth, requireAdmin, uploadExcelMiddleware, uploadExcelStudentsRoute);
-  app.post(`${apiPrefix}/admin/students/upload-excel-base64`, jwtAuth, requireAdmin, uploadExcelStudentsBase64Route);
+  // Excel upload via Supabase Storage (preferred path)
   app.post(`${apiPrefix}/admin/students/upload-excel-from-storage`, jwtAuth, requireAdmin, uploadExcelFromStorageRoute);
 
   const httpServer = createServer(app);
