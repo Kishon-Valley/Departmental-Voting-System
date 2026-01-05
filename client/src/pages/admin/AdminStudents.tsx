@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Loader2, Users, Upload, FileSpreadsheet } from "lucide-react";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import AdminNavbar from "@/components/admin/AdminNavbar";
+import { supabase } from "@/lib/supabase";
 import {
   Table,
   TableBody,
@@ -89,32 +90,79 @@ export default function AdminStudents() {
 
   const uploadExcelMutation = useMutation({
     mutationFn: async (file: File) => {
-      // Convert file to base64 for Vercel compatibility
-      // Vercel serverless functions have limitations with multipart/form-data
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          // Remove data URL prefix if present
-          const base64Data = result.includes(',') ? result.split(',')[1] : result;
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // Supabase Storage can handle large files (up to 50MB+), so we use direct upload
+      // This bypasses Vercel's payload limits entirely
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit for Supabase Storage
+      
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(
+          `File too large. Maximum size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB. ` +
+          `Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB. ` +
+          `Please split your Excel file into smaller batches.`
+        );
+      }
 
-      // Use base64 upload endpoint (works better with Vercel)
-      const res = await apiRequest("POST", "/api/admin/students/upload-excel-base64", {
-        file: base64,
-        filename: file.name,
+      // Check if Supabase client is available
+      if (!supabase) {
+        throw new Error('Supabase client not configured. Please check your environment variables.');
+      }
+
+      // Step 1: Upload Excel file directly to Supabase Storage
+      const fileExt = file.name.split('.').pop() || 'xlsx';
+      const fileName = `excel-uploads/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('student-avatars') // Using existing bucket, or create 'excel-files' bucket
+        .upload(fileName, file, {
+          contentType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(`Failed to upload to storage: ${uploadError.message}`);
+      }
+
+      // Step 2: Get the public URL or signed URL
+      const { data: urlData } = supabase.storage
+        .from('student-avatars')
+        .getPublicUrl(fileName);
+
+      // Step 3: Process the Excel file from Supabase Storage URL
+      const res = await apiRequest("POST", "/api/admin/students/upload-excel-from-storage", {
+        storageUrl: urlData.publicUrl,
+        fileName: file.name,
+        storagePath: fileName, // Store path for cleanup
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ message: 'An unknown error occurred' }));
-        throw new Error(errorData.message || 'File upload failed');
+        // If processing fails, try to clean up the uploaded file
+        try {
+          await supabase.storage.from('student-avatars').remove([fileName]);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup uploaded file:', cleanupError);
+        }
+
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          errorData = { message: `Server error: ${res.status} ${res.statusText}` };
+        }
+        
+        throw new Error(errorData.message || errorData.error || 'File processing failed');
       }
 
-      return res.json();
+      const result = await res.json();
+
+      // Step 4: Clean up the uploaded file after successful processing
+      try {
+        await supabase.storage.from('student-avatars').remove([fileName]);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup uploaded file after processing:', cleanupError);
+        // Don't throw - processing was successful
+      }
+
+      return result;
     },
     onSuccess: (data) => {
       const { created, skipped, errors } = data.summary || {};
@@ -129,6 +177,16 @@ export default function AdminStudents() {
       // Show detailed results if there are errors or skipped items
       if (errors > 0 || skipped > 0) {
         console.log("Upload details:", data);
+        // Show detailed error information to user
+        if (data.errors && data.errors.length > 0) {
+          const errorList = data.errors.slice(0, 5).join(', ');
+          const moreErrors = data.errors.length > 5 ? ` and ${data.errors.length - 5} more...` : '';
+          toast({
+            title: "Some errors occurred",
+            description: `${errorList}${moreErrors}`,
+            variant: "destructive",
+          });
+        }
       }
 
       setExcelFile(null);
@@ -191,15 +249,27 @@ export default function AdminStudents() {
                     <Button
                       type="button"
                       onClick={() => {
-                        if (excelFile) {
-                          uploadExcelMutation.mutate(excelFile);
-                        } else {
+                        if (!excelFile) {
                           toast({
                             title: "No file selected",
                             description: "Please select an Excel file to upload",
                             variant: "destructive",
                           });
+                          return;
                         }
+                        
+                        // Validate file size before upload (3.4MB limit)
+                        const MAX_FILE_SIZE = 3.4 * 1024 * 1024;
+                        if (excelFile.size > MAX_FILE_SIZE) {
+                          toast({
+                            title: "File too large",
+                            description: `Maximum file size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(1)}MB. Your file is ${(excelFile.size / 1024 / 1024).toFixed(2)}MB. Please split your Excel file into smaller batches.`,
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        
+                        uploadExcelMutation.mutate(excelFile);
                       }}
                       disabled={!excelFile || uploadExcelMutation.isPending}
                     >
@@ -237,6 +307,9 @@ export default function AdminStudents() {
                   <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
                     <p className="font-semibold">Note: Each student's email will be used as their initial password.</p>
                     <p>Students should change their password after first login.</p>
+                    <p className="mt-2 font-semibold text-green-600 dark:text-green-400">
+                      ✅ Large files supported: Up to 50MB via Supabase Storage (bypasses server limitations)
+                    </p>
                   </div>
                 </div>
               </div>

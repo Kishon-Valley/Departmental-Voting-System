@@ -7,10 +7,11 @@ import { supabase } from "../db.js";
 import * as XLSX from "xlsx";
 
 // Configure multer for memory storage (for local dev)
+// Note: Using same limit as base64 route for consistency
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for Excel files
+    fileSize: 3.4 * 1024 * 1024, // ~3.4MB limit to match Vercel payload limits
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
@@ -32,7 +33,9 @@ export const uploadExcelMiddleware = (req: Request, res: Response, next: NextFun
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(400).json({ message: "File too large. Maximum size is 10MB." });
+          return res.status(400).json({ 
+            message: `File too large. Maximum size is ${(3.4 * 1024 * 1024 / 1024 / 1024).toFixed(1)}MB. Please split your Excel file into smaller batches.` 
+          });
         }
         return res.status(400).json({ message: err.message });
       }
@@ -158,10 +161,15 @@ export async function uploadExcelStudentsBase64Route(req: Request, res: Response
       });
     }
 
-    // Validate file size (10MB)
-    if (fileBuffer.length > 10 * 1024 * 1024) {
+    // Validate file size
+    // Note: Vercel has a ~4.5MB payload limit, and base64 increases size by ~33%
+    // So we limit to ~3.4MB raw file size to stay under Vercel's limit
+    const MAX_FILE_SIZE = 3.4 * 1024 * 1024; // ~3.4MB
+    if (fileBuffer.length > MAX_FILE_SIZE) {
       return res.status(400).json({ 
-        message: "File too large. Please select a file smaller than 10MB." 
+        message: `File too large. Maximum size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(1)}MB. Your file is ${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB. Please split your Excel file into smaller batches.`,
+        fileSize: fileBuffer.length,
+        maxSize: MAX_FILE_SIZE
       });
     }
 
@@ -175,6 +183,137 @@ export async function uploadExcelStudentsBase64Route(req: Request, res: Response
 
     // Parse Excel file
     const parseResult = parseExcelFile(fileObj.buffer);
+
+    if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
+      return res.status(400).json({
+        message: "Failed to parse Excel file",
+        errors: parseResult.errors,
+      });
+    }
+
+    // Convert to InsertStudent format (email is used as password)
+    const insertStudents = convertToInsertStudents(parseResult.students);
+
+    // Create students in database
+    const results = {
+      created: [] as any[],
+      skipped: [] as string[],
+      errors: [] as string[],
+    };
+
+    for (let i = 0; i < insertStudents.length; i++) {
+      const studentData = insertStudents[i];
+      const excelStudent = parseResult.students[i];
+
+      try {
+        const existingStudent = await storage.getStudentByIndexNumber(studentData.indexNumber);
+        if (existingStudent) {
+          results.skipped.push(
+            `Row ${i + 2}: Student with index number ${studentData.indexNumber} already exists`
+          );
+          continue;
+        }
+
+        const student = await storage.createStudent(studentData);
+
+        if (excelStudent.profilePicture) {
+          try {
+            const profilePictureUrl = await uploadProfilePicture(
+              excelStudent.profilePicture,
+              student.id,
+              student.indexNumber
+            );
+            if (profilePictureUrl) {
+              await storage.updateStudent(student.id, { profilePicture: profilePictureUrl });
+              student.profilePicture = profilePictureUrl;
+            }
+          } catch (imageError) {
+            results.errors.push(
+              `Row ${i + 2}: ${student.indexNumber} - Profile picture upload failed (student created without picture)`
+            );
+          }
+        }
+
+        const { password, ...studentWithoutPassword } = student;
+        results.created.push(studentWithoutPassword);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        results.errors.push(`Row ${i + 2}: ${studentData.indexNumber} - ${errorMessage}`);
+      }
+    }
+
+    if (parseResult.errors.length > 0) {
+      results.errors.push(...parseResult.errors);
+    }
+
+    return res.json({
+      message: `Successfully processed ${results.created.length} students`,
+      summary: {
+        created: results.created.length,
+        skipped: results.skipped.length,
+        errors: results.errors.length,
+      },
+      created: results.created,
+      skipped: results.skipped,
+      errors: results.errors,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to process Excel file",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+/**
+ * Process Excel file from Supabase Storage URL
+ * POST /api/admin/students/upload-excel-from-storage
+ * This endpoint downloads the file from Supabase Storage and processes it
+ * This bypasses Vercel's payload size limits
+ */
+export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
+  try {
+    const { storageUrl, fileName: originalFileName, storagePath } = req.body || {};
+
+    if (!storageUrl || typeof storageUrl !== 'string') {
+      return res.status(400).json({ 
+        message: "No storage URL provided" 
+      });
+    }
+
+    // Download file from Supabase Storage
+    let fileBuffer: Buffer;
+    try {
+      const response = await fetch(storageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download file from storage: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
+      
+      if (fileBuffer.length === 0) {
+        throw new Error('Downloaded file buffer is empty');
+      }
+    } catch (downloadError) {
+      return res.status(400).json({
+        message: "Failed to download file from storage",
+        error: downloadError instanceof Error ? downloadError.message : "Unknown error",
+      });
+    }
+
+    // Validate file size (50MB limit for Supabase Storage)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (fileBuffer.length > MAX_FILE_SIZE) {
+      return res.status(400).json({ 
+        message: `File too large. Maximum size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB. Your file is ${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB.`,
+        fileSize: fileBuffer.length,
+        maxSize: MAX_FILE_SIZE
+      });
+    }
+
+    // Parse Excel file
+    const parseResult = parseExcelFile(fileBuffer);
 
     if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
       return res.status(400).json({
@@ -283,14 +422,150 @@ export async function uploadExcelStudentsRoute(req: Request, res: Response) {
       });
     }
 
-    if (req.file.size && req.file.size > 10 * 1024 * 1024) {
+    // For local dev, we can allow larger files (10MB)
+    // But for consistency, we'll use the same limit
+    const MAX_FILE_SIZE = 3.4 * 1024 * 1024; // ~3.4MB (same as base64 route)
+    if (req.file.size && req.file.size > MAX_FILE_SIZE) {
       return res.status(400).json({ 
-        message: "File too large. Maximum size is 10MB." 
+        message: `File too large. Maximum size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(1)}MB. Your file is ${(req.file.size / 1024 / 1024).toFixed(2)}MB. Please split your Excel file into smaller batches.`,
+        fileSize: req.file.size,
+        maxSize: MAX_FILE_SIZE
       });
     }
 
     // Parse Excel file
     const parseResult = parseExcelFile(req.file.buffer);
+
+    if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
+      return res.status(400).json({
+        message: "Failed to parse Excel file",
+        errors: parseResult.errors,
+      });
+    }
+
+    // Convert to InsertStudent format (email is used as password)
+    const insertStudents = convertToInsertStudents(parseResult.students);
+
+    // Create students in database
+    const results = {
+      created: [] as any[],
+      skipped: [] as string[],
+      errors: [] as string[],
+    };
+
+    for (let i = 0; i < insertStudents.length; i++) {
+      const studentData = insertStudents[i];
+      const excelStudent = parseResult.students[i];
+
+      try {
+        const existingStudent = await storage.getStudentByIndexNumber(studentData.indexNumber);
+        if (existingStudent) {
+          results.skipped.push(
+            `Row ${i + 2}: Student with index number ${studentData.indexNumber} already exists`
+          );
+          continue;
+        }
+
+        const student = await storage.createStudent(studentData);
+
+        if (excelStudent.profilePicture) {
+          try {
+            const profilePictureUrl = await uploadProfilePicture(
+              excelStudent.profilePicture,
+              student.id,
+              student.indexNumber
+            );
+            if (profilePictureUrl) {
+              await storage.updateStudent(student.id, { profilePicture: profilePictureUrl });
+              student.profilePicture = profilePictureUrl;
+            }
+          } catch (imageError) {
+            results.errors.push(
+              `Row ${i + 2}: ${student.indexNumber} - Profile picture upload failed (student created without picture)`
+            );
+          }
+        }
+
+        const { password, ...studentWithoutPassword } = student;
+        results.created.push(studentWithoutPassword);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        results.errors.push(`Row ${i + 2}: ${studentData.indexNumber} - ${errorMessage}`);
+      }
+    }
+
+    if (parseResult.errors.length > 0) {
+      results.errors.push(...parseResult.errors);
+    }
+
+    return res.json({
+      message: `Successfully processed ${results.created.length} students`,
+      summary: {
+        created: results.created.length,
+        skipped: results.skipped.length,
+        errors: results.errors.length,
+      },
+      created: results.created,
+      skipped: results.skipped,
+      errors: results.errors,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to process Excel file",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+/**
+ * Process Excel file from Supabase Storage URL
+ * POST /api/admin/students/upload-excel-from-storage
+ * This endpoint downloads the file from Supabase Storage and processes it
+ * This bypasses Vercel's payload size limits
+ */
+export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
+  try {
+    const { storageUrl, fileName: originalFileName, storagePath } = req.body || {};
+
+    if (!storageUrl || typeof storageUrl !== 'string') {
+      return res.status(400).json({ 
+        message: "No storage URL provided" 
+      });
+    }
+
+    // Download file from Supabase Storage
+    let fileBuffer: Buffer;
+    try {
+      const response = await fetch(storageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download file from storage: ${response.status} ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
+      
+      if (fileBuffer.length === 0) {
+        throw new Error('Downloaded file buffer is empty');
+      }
+    } catch (downloadError) {
+      return res.status(400).json({
+        message: "Failed to download file from storage",
+        error: downloadError instanceof Error ? downloadError.message : "Unknown error",
+      });
+    }
+
+    // Validate file size (50MB limit for Supabase Storage)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (fileBuffer.length > MAX_FILE_SIZE) {
+      return res.status(400).json({ 
+        message: `File too large. Maximum size is ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB. Your file is ${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB.`,
+        fileSize: fileBuffer.length,
+        maxSize: MAX_FILE_SIZE
+      });
+    }
+
+    // Parse Excel file
+    const parseResult = parseExcelFile(fileBuffer);
 
     if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
       return res.status(400).json({
