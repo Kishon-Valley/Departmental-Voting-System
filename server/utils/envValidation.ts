@@ -8,12 +8,16 @@ export function validateEnvironmentVariables() {
   const warnings: string[] = [];
 
   // Required in all environments
-  if (!process.env.SUPABASE_URL) {
-    errors.push("SUPABASE_URL must be set");
+  // Check both SUPABASE_URL and VITE_SUPABASE_URL (for Vercel compatibility)
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl) {
+    errors.push("SUPABASE_URL or VITE_SUPABASE_URL must be set");
   }
 
-  if (!process.env.SUPABASE_ANON_KEY) {
-    errors.push("SUPABASE_ANON_KEY must be set");
+  if (!supabaseAnonKey) {
+    errors.push("SUPABASE_ANON_KEY or VITE_SUPABASE_ANON_KEY must be set");
   }
 
   // Required in production

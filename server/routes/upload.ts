@@ -7,8 +7,9 @@ import { supabase } from "../db.js";
 // This bypasses RLS policies for server-side uploads
 const getStorageClient = () => {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (serviceRoleKey && process.env.SUPABASE_URL) {
-    return createClient(process.env.SUPABASE_URL, serviceRoleKey, {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  if (serviceRoleKey && supabaseUrl) {
+    return createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,

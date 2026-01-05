@@ -1,4 +1,5 @@
 // Vercel serverless function for API routes
+import "../env.js"; // Load environment variables first
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express from "express";
 import passport from "../server/auth/passport.js";
