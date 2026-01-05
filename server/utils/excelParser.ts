@@ -497,7 +497,9 @@ export function convertToInsertStudents(
       fullName: student.name,
       email: student.email!, // Non-null assertion since we filtered above
       year: null, // Year not in Excel, can be updated later
-      profilePicture: student.profilePicture, // This could be a URL or base64 data
+      // Don't include profilePicture here - it will be uploaded to Supabase Storage separately
+      // and then updated in the student record after successful upload
+      profilePicture: null,
       password: student.email!, // Use email as password
     }));
 }
