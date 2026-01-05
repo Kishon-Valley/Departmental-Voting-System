@@ -43,19 +43,131 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
 
     // Build image map: row number -> column index -> image buffer
     const imageMap = new Map<number, Map<number, Buffer>>();
+    let imagesFound = 0;
     
     // Try to extract images from worksheet
     try {
-      // Method 1: ExcelJS stores images in worksheet.images array (for newer versions)
+      console.log('Starting image extraction from Excel...');
+      
+      // Method 1: Check workbook model.media (primary method for ExcelJS)
+      if (workbook.model && (workbook.model as any).media) {
+        const media = (workbook.model as any).media;
+        console.log(`Found workbook media: ${Array.isArray(media) ? media.length : 'not array'} items`);
+        
+        if (Array.isArray(media)) {
+          // Media array contains image data
+          for (let mediaIndex = 0; mediaIndex < media.length; mediaIndex++) {
+            const mediaItem = media[mediaIndex];
+            if (mediaItem && mediaItem.buffer) {
+              const imageBuffer = mediaItem.buffer instanceof Buffer
+                ? mediaItem.buffer
+                : Buffer.from(mediaItem.buffer);
+              
+              // Now we need to find which cell this image belongs to
+              // Check worksheet drawings/anchors to match media index
+              if (worksheet.model && (worksheet.model as any).drawings) {
+                const drawings = (worksheet.model as any).drawings;
+                for (const drawing of drawings) {
+                  // Check if this drawing references this media item
+                  if (drawing.image && drawing.image.index === mediaIndex) {
+                    if (drawing.anchors && drawing.anchors.length > 0) {
+                      const anchor = drawing.anchors[0];
+                      let row = -1;
+                      let col = -1;
+                      
+                      // Try multiple ways to get row/col from anchor
+                      if (anchor.from) {
+                        row = anchor.from.row !== undefined ? anchor.from.row : -1;
+                        col = anchor.from.col !== undefined ? anchor.from.col : -1;
+                      } else if (anchor.nativeRow !== undefined && anchor.nativeCol !== undefined) {
+                        row = anchor.nativeRow;
+                        col = anchor.nativeCol;
+                      } else if (anchor.row !== undefined && anchor.col !== undefined) {
+                        row = anchor.row;
+                        col = anchor.col;
+                      }
+                      
+                      if (row >= 0 && col >= 0) {
+                        if (!imageMap.has(row)) {
+                          imageMap.set(row, new Map());
+                        }
+                        imageMap.get(row)!.set(col, imageBuffer);
+                        imagesFound++;
+                        console.log(`Found image at row ${row}, col ${col} (media index ${mediaIndex})`);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Method 2: Check worksheet model.drawings directly
+      if (worksheet.model && (worksheet.model as any).drawings) {
+        const drawings = (worksheet.model as any).drawings;
+        console.log(`Found ${drawings.length} drawings in worksheet`);
+        
+        for (let drawIndex = 0; drawIndex < drawings.length; drawIndex++) {
+          const drawing = drawings[drawIndex];
+          
+          // Check if drawing has image data
+          if (drawing.image) {
+            let imageBuffer: Buffer | null = null;
+            
+            // Try to get buffer from drawing.image
+            if (drawing.image.buffer) {
+              imageBuffer = drawing.image.buffer instanceof Buffer
+                ? drawing.image.buffer
+                : Buffer.from(drawing.image.buffer);
+            } else if (drawing.image.index !== undefined && workbook.model && (workbook.model as any).media) {
+              // Get image from media array using index
+              const media = (workbook.model as any).media;
+              if (Array.isArray(media) && media[drawing.image.index] && media[drawing.image.index].buffer) {
+                imageBuffer = media[drawing.image.index].buffer instanceof Buffer
+                  ? media[drawing.image.index].buffer
+                  : Buffer.from(media[drawing.image.index].buffer);
+              }
+            }
+            
+            if (imageBuffer && drawing.anchors && drawing.anchors.length > 0) {
+              const anchor = drawing.anchors[0];
+              let row = -1;
+              let col = -1;
+              
+              // Try multiple anchor property combinations
+              if (anchor.from) {
+                row = anchor.from.row !== undefined ? anchor.from.row : -1;
+                col = anchor.from.col !== undefined ? anchor.from.col : -1;
+              }
+              if (row < 0 && anchor.nativeRow !== undefined) row = anchor.nativeRow;
+              if (col < 0 && anchor.nativeCol !== undefined) col = anchor.nativeCol;
+              if (row < 0 && anchor.row !== undefined) row = anchor.row;
+              if (col < 0 && anchor.col !== undefined) col = anchor.col;
+              
+              if (row >= 0 && col >= 0) {
+                if (!imageMap.has(row)) {
+                  imageMap.set(row, new Map());
+                }
+                imageMap.get(row)!.set(col, imageBuffer);
+                imagesFound++;
+                console.log(`Found image via drawing at row ${row}, col ${col}`);
+              }
+            }
+          }
+        }
+      }
+      
+      // Method 3: Check worksheet.images (some ExcelJS versions)
       if ((worksheet as any).images && Array.isArray((worksheet as any).images)) {
+        console.log(`Found ${(worksheet as any).images.length} images in worksheet.images`);
         for (const image of (worksheet as any).images) {
           if (image.image && image.image.buffer) {
             const imageBuffer = image.image.buffer instanceof Buffer 
               ? image.image.buffer 
               : Buffer.from(image.image.buffer);
             
-            // Get image position from image object
-            // ExcelJS uses tl (top-left) for positioning
             const row = image.tl ? (image.tl.row || 0) : (image.range?.tl?.row || 0);
             const col = image.tl ? (image.tl.col || 0) : (image.range?.tl?.col || 0);
             
@@ -64,86 +176,16 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
                 imageMap.set(row, new Map());
               }
               imageMap.get(row)!.set(col, imageBuffer);
+              imagesFound++;
+              console.log(`Found image via worksheet.images at row ${row}, col ${col}`);
             }
           }
         }
       }
       
-      // Method 2: Check workbook's image collection
-      if (workbook.model && (workbook.model as any).media) {
-        const media = (workbook.model as any).media;
-        if (Array.isArray(media)) {
-          // Images are stored in workbook media, need to match with worksheet
-          // This is a fallback method
-        }
-      }
-      
-      // Method 3: Check model.drawings for embedded images (older ExcelJS versions)
-      if (worksheet.model && (worksheet.model as any).drawings) {
-        const drawings = (worksheet.model as any).drawings;
-        for (const drawing of drawings) {
-          if (drawing.anchors && drawing.anchors.length > 0) {
-            const anchor = drawing.anchors[0];
-            const row = anchor.from ? anchor.from.row : (anchor.nativeCol ? anchor.nativeCol : -1);
-            const col = anchor.from ? anchor.from.col : (anchor.nativeRow ? anchor.nativeRow : -1);
-            
-            // Also try alternative anchor properties
-            const altRow = anchor.nativeRow !== undefined ? anchor.nativeRow : row;
-            const altCol = anchor.nativeCol !== undefined ? anchor.nativeCol : col;
-            
-            if (drawing.image && drawing.image.buffer) {
-              const imageBuffer = drawing.image.buffer instanceof Buffer
-                ? drawing.image.buffer
-                : Buffer.from(drawing.image.buffer);
-              
-              // Try both row/col combinations
-              const finalRow = row >= 0 ? row : altRow;
-              const finalCol = col >= 0 ? col : altCol;
-              
-              if (finalRow >= 0 && finalCol >= 0) {
-                if (!imageMap.has(finalRow)) {
-                  imageMap.set(finalRow, new Map());
-                }
-                imageMap.get(finalRow)!.set(finalCol, imageBuffer);
-              }
-            }
-          }
-        }
-      }
-      
-      // Method 4: Try accessing images through worksheet's getImages() method if available
-      if (typeof (worksheet as any).getImages === 'function') {
-        try {
-          const images = (worksheet as any).getImages();
-          if (Array.isArray(images)) {
-            for (const image of images) {
-              if (image.buffer || image.image?.buffer) {
-                const imageBuffer = image.buffer instanceof Buffer
-                  ? image.buffer
-                  : (image.image?.buffer instanceof Buffer
-                    ? image.image.buffer
-                    : Buffer.from(image.image?.buffer || image.buffer));
-                
-                const row = image.row !== undefined ? image.row : (image.tl?.row || 0);
-                const col = image.col !== undefined ? image.col : (image.tl?.col || 0);
-                
-                if (row >= 0 && col >= 0) {
-                  if (!imageMap.has(row)) {
-                    imageMap.set(row, new Map());
-                  }
-                  imageMap.get(row)!.set(col, imageBuffer);
-                }
-              }
-            }
-          }
-        } catch (getImagesError) {
-          // Method not available, continue
-        }
-      }
+      console.log(`Image extraction complete. Found ${imagesFound} images. Image map size: ${imageMap.size}`);
     } catch (imageError) {
-      // If image extraction fails, continue without images
-      // Images can still be provided as URLs or base64 in cells
-      console.warn('Image extraction warning:', imageError instanceof Error ? imageError.message : 'Unknown error');
+      console.error('Image extraction error:', imageError instanceof Error ? imageError.message : 'Unknown error', imageError);
     }
 
     // Convert worksheet to array format
@@ -239,28 +281,81 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
         const pictureValue = columnMap['PASSPORT SIZED PICTURE'] !== -1 ? row[columnMap['PASSPORT SIZED PICTURE']] : null;
         let profilePicture = pictureValue ? String(pictureValue).trim() : null;
         
+        const pictureColIndex = columnMap['PASSPORT SIZED PICTURE'];
+        const excelRowNumber = i + 1; // Excel row number (1-based, row 1 is header, row 2 is first data)
+        const dataRowIndex = i; // Index in jsonData array (0-based, index 0 is header, index 1 is first data)
+        
+        // Debug logging for first few rows
+        if (i <= 2) {
+          console.log(`Row ${excelRowNumber} (data index ${dataRowIndex}):`, {
+            pictureColIndex,
+            pictureValue: pictureValue ? `${String(pictureValue).substring(0, 50)}...` : null,
+            imageMapHasRow0: imageMap.has(dataRowIndex),
+            imageMapHasRow1: imageMap.has(excelRowNumber),
+            imageMapSize: imageMap.size,
+            imageMapKeys: Array.from(imageMap.keys())
+          });
+        }
+        
         // If no picture from cell value, check if there's an embedded image in this row/column
         // This handles cases where ExcelJS image extraction didn't populate the cell value
         if (!profilePicture || profilePicture.length === 0) {
-          const pictureColIndex = columnMap['PASSPORT SIZED PICTURE'];
           if (pictureColIndex !== -1) {
-            // Check image map for this row (i is 1-based for data rows, jsonData[0] is header)
-            // So data row index in jsonData is i (which starts at 1)
-            const rowIndex0 = i; // 0-based row index in jsonData (data row)
-            const rowIndex1 = i + 1; // 1-based row index (Excel row number, accounting for header)
+            // Try multiple row index combinations
+            const rowIndicesToTry = [
+              excelRowNumber,      // Excel row number (1-based, row 2 = first data row)
+              dataRowIndex,        // Data array index (0-based, index 1 = first data row)
+              excelRowNumber - 1,  // Excel row minus 1 (0-based Excel row)
+              dataRowIndex + 1,    // Data index plus 1
+            ];
             
-            // Try both 0-based and 1-based row indices
-            if (imageMap.has(rowIndex0) && imageMap.get(rowIndex0)!.has(pictureColIndex)) {
-              const imageBuffer = imageMap.get(rowIndex0)!.get(pictureColIndex)!;
-              const base64 = imageBuffer.toString('base64');
-              const mimeType = detectImageType(imageBuffer) || 'image/jpeg';
-              profilePicture = `data:${mimeType};base64,${base64}`;
-            } else if (imageMap.has(rowIndex1) && imageMap.get(rowIndex1)!.has(pictureColIndex)) {
-              const imageBuffer = imageMap.get(rowIndex1)!.get(pictureColIndex)!;
-              const base64 = imageBuffer.toString('base64');
-              const mimeType = detectImageType(imageBuffer) || 'image/jpeg';
-              profilePicture = `data:${mimeType};base64,${base64}`;
+            for (const rowIndex of rowIndicesToTry) {
+              if (imageMap.has(rowIndex)) {
+                const colMap = imageMap.get(rowIndex)!;
+                
+                // Try exact column and nearby columns (images might be slightly offset)
+                const colIndicesToTry = [
+                  pictureColIndex,
+                  pictureColIndex - 1,
+                  pictureColIndex + 1,
+                  pictureColIndex - 2,
+                  pictureColIndex + 2,
+                ];
+                
+                for (const colIndex of colIndicesToTry) {
+                  if (colMap.has(colIndex)) {
+                    const imageBuffer = colMap.get(colIndex)!;
+                    const base64 = imageBuffer.toString('base64');
+                    const mimeType = detectImageType(imageBuffer) || 'image/jpeg';
+                    profilePicture = `data:${mimeType};base64,${base64}`;
+                    
+                    if (i <= 2) {
+                      console.log(`Found embedded image for row ${excelRowNumber} at rowIndex ${rowIndex}, colIndex ${colIndex}`);
+                    }
+                    break;
+                  }
+                }
+                
+                if (profilePicture) break;
+              }
             }
+            
+            // If still no image, log available images for debugging
+            if (!profilePicture && i <= 2 && imageMap.size > 0) {
+              console.log(`No image found for row ${excelRowNumber}, col ${pictureColIndex}. Available images:`, 
+                Array.from(imageMap.entries()).map(([row, cols]) => 
+                  `row ${row}: cols ${Array.from(cols.keys()).join(', ')}`
+                ).join('; ')
+              );
+            }
+          } else {
+            if (i <= 2) {
+              console.log(`Row ${excelRowNumber}: PASSPORT SIZED PICTURE column not found in header`);
+            }
+          }
+        } else {
+          if (i <= 2) {
+            console.log(`Row ${excelRowNumber}: Found picture value in cell (length: ${profilePicture.length})`);
           }
         }
         
