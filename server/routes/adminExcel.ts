@@ -148,14 +148,6 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
     // Convert to InsertStudent format (email is used as password)
     const insertStudents = convertToInsertStudents(parseResult.students);
 
-    // Log the first student's profile picture data for debugging
-    if (insertStudents.length > 0 && parseResult.students[0].profilePicture) {
-      console.log(
-        'Debug: First student profile picture data (first 100 chars):',
-        parseResult.students[0].profilePicture.substring(0, 100)
-      );
-    }
-
     // Create students in database
     const results = {
       created: [] as any[],
@@ -176,7 +168,9 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
           continue;
         }
 
-        const student = await storage.createStudent(studentData);
+        const { profilePicture, ...studentDataWithoutPicture } = studentData;
+
+        const student = await storage.createStudent(studentDataWithoutPicture);
 
         if (excelStudent.profilePicture) {
           try {
