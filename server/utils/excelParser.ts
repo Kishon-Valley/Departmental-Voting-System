@@ -118,7 +118,9 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
         // Try to normalize/extract email from messy cell content
         const email = normalizeEmail(rawEmail);
         if (!email) {
-          errors.push(`Row ${i + 1}: Invalid email format: ${rawEmail}`);
+          // Show the raw value and its length to help debug hidden characters
+          const displayValue = rawEmail.length > 50 ? rawEmail.substring(0, 50) + '...' : rawEmail;
+          errors.push(`Row ${i + 1}: Invalid email format: "${displayValue}"`);
           continue;
         }
 
@@ -168,24 +170,63 @@ function isValidEmail(email: string): boolean {
  * Examples it will fix:
  * - "1. john@example.com" -> "john@example.com"
  * - ": john@example.com"  -> "john@example.com"
+ * - "leonidasking571@gmail.com" -> "leonidasking571@gmail.com"
  * - "N" or any string without an email -> null
  */
 function normalizeEmail(value: string | null): string | null {
   if (!value) return null;
 
-  const trimmed = value.trim();
+  // Remove all whitespace and normalize
+  const trimmed = value.trim().replace(/\s+/g, '');
 
   // Fast path: already looks like a valid email
   if (isValidEmail(trimmed)) {
-    return trimmed;
+    return trimmed.toLowerCase();
   }
 
   // Try to extract the first email-like substring from the text
-  const emailPattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+  // More permissive pattern to catch emails with various formats
+  const emailPattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/i;
   const match = trimmed.match(emailPattern);
 
-  if (match && isValidEmail(match[0])) {
-    return match[0];
+  if (match) {
+    const extractedEmail = match[0].trim();
+    // Validate the extracted email
+    if (isValidEmail(extractedEmail)) {
+      return extractedEmail.toLowerCase();
+    }
+  }
+
+  // Try to find email even if there are leading characters like colons, numbers, etc.
+  // Look for @ symbol and extract around it
+  const atIndex = trimmed.indexOf('@');
+  if (atIndex > 0 && atIndex < trimmed.length - 1) {
+    // Extract potential email around @ symbol
+    let start = atIndex - 1;
+    let end = atIndex + 1;
+    
+    // Find start of email (go backwards until we hit invalid char or start)
+    while (start >= 0 && /[A-Za-z0-9._%+-]/.test(trimmed[start])) {
+      start--;
+    }
+    start++;
+    
+    // Find end of email (go forwards until we hit space or invalid char)
+    while (end < trimmed.length && /[A-Za-z0-9._%-]/.test(trimmed[end])) {
+      end++;
+    }
+    // Include domain extension
+    if (end < trimmed.length && trimmed[end] === '.') {
+      end++;
+      while (end < trimmed.length && /[A-Za-z]/.test(trimmed[end])) {
+        end++;
+      }
+    }
+    
+    const potentialEmail = trimmed.substring(start, end).trim();
+    if (isValidEmail(potentialEmail)) {
+      return potentialEmail.toLowerCase();
+    }
   }
 
   return null;
