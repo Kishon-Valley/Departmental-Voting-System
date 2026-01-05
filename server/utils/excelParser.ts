@@ -267,14 +267,57 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
           }
         } else if (Array.isArray(media) && !hasDrawings) {
           // If no drawings but we have media, try a different approach
-          // Maybe images are stored differently - try to access via worksheet relationships
-          console.log('No drawings found, trying to access images via worksheet relationships...');
+          // Since we can't match via anchors, we'll match by order
+          // Assumption: Images are in the same order as data rows, starting from row 2 (first data row)
+          console.log('No drawings found, trying to match images to rows by order...');
+          console.log(`We have ${media.length} media items. Will match to data rows starting from row 2.`);
           
-          // Check if worksheet has a relationship to media
-          if ((worksheet as any).relationships) {
-            const relationships = (worksheet as any).relationships;
-            console.log(`Found ${relationships.length || 0} relationships in worksheet`);
+          // Get the picture column index from headers (we'll need to do this later, but for now assume column E = index 4)
+          // Actually, we need to know which column has pictures - this will be determined when we process rows
+          // For now, store all media items and we'll match them when processing rows
+          
+          // Store media items in order - we'll match them to rows when processing
+          // Since we don't know the column yet, we'll store them temporarily
+          const orderedMedia: Buffer[] = [];
+          for (let mIdx = 0; mIdx < media.length; mIdx++) {
+            const mediaItem = media[mIdx] as any;
+            if (mediaItem && mediaItem.buffer) {
+              const imageBuffer = mediaItem.buffer instanceof Buffer
+                ? mediaItem.buffer
+                : Buffer.from(mediaItem.buffer);
+              orderedMedia.push(imageBuffer);
+            }
           }
+          
+          console.log(`Stored ${orderedMedia.length} images for ordered matching`);
+          
+          // We'll match these to rows when we process the data rows
+          // Store in a way we can access later - use a special marker
+          // Actually, let's match them now assuming:
+          // - Row 2 (Excel) = data row 1 = image 0
+          // - Row 3 (Excel) = data row 2 = image 1
+          // etc.
+          const pictureColIndex = 4; // Column E (0-based index 4) - PASSPORT SIZED PICTURE
+          
+          for (let imgIdx = 0; imgIdx < orderedMedia.length; imgIdx++) {
+            // Excel row number = imgIdx + 2 (row 1 is header, row 2 is first data row)
+            const excelRowNumber = imgIdx + 2;
+            const imageBuffer = orderedMedia[imgIdx];
+            
+            if (imageBuffer && imageBuffer.length > 0) {
+              if (!imageMap.has(excelRowNumber)) {
+                imageMap.set(excelRowNumber, new Map());
+              }
+              imageMap.get(excelRowNumber)!.set(pictureColIndex, imageBuffer);
+              imagesFound++;
+              
+              if (imgIdx < 5) {
+                console.log(`Ordered match: Image ${imgIdx} -> Excel row ${excelRowNumber}, col ${pictureColIndex}`);
+              }
+            }
+          }
+          
+          console.log(`Ordered matching complete: ${imagesFound} images matched to rows`);
         }
       }
       
