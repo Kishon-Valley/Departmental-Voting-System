@@ -48,7 +48,6 @@ async function uploadProfilePicture(
     } else if (imageData.startsWith("http://") || imageData.startsWith("https://")) {
       const response = await fetch(imageData);
       if (!response.ok) {
-        console.error(`Failed to fetch image from URL for student ${indexNumber}: ${response.status} ${response.statusText}`);
         return null;
       }
       const arrayBuffer = await response.arrayBuffer();
@@ -58,13 +57,7 @@ async function uploadProfilePicture(
       imageBuffer = Buffer.from(imageData, "base64");
     }
 
-    if (imageBuffer.length === 0) {
-      console.error(`Empty image buffer for student ${indexNumber}`);
-      return null;
-    }
-
     if (imageBuffer.length > 5 * 1024 * 1024) {
-      console.error(`Image too large for student ${indexNumber}: ${imageBuffer.length} bytes`);
       return null;
     }
 
@@ -73,7 +66,7 @@ async function uploadProfilePicture(
     const filePath = `avatars/${fileName}`;
 
     const storageClient = getStorageClient();
-    const { data: uploadData, error: uploadError } = await storageClient.storage
+    const { error: uploadError } = await storageClient.storage
       .from("student-avatars")
       .upload(filePath, imageBuffer, {
         contentType,
@@ -81,22 +74,12 @@ async function uploadProfilePicture(
       });
 
     if (uploadError) {
-      console.error(`Failed to upload profile picture for student ${indexNumber} (${studentId}):`, uploadError);
       return null;
     }
 
-    // Use the storage client to get public URL (ensures consistent access)
-    // If storageClient has service role key, use it; otherwise fall back to regular supabase client
-    const { data: urlData } = storageClient.storage.from("student-avatars").getPublicUrl(filePath);
-    
-    if (!urlData || !urlData.publicUrl) {
-      console.error(`Failed to get public URL for student ${indexNumber} (${studentId})`);
-      return null;
-    }
-
+    const { data: urlData } = supabase.storage.from("student-avatars").getPublicUrl(filePath);
     return urlData.publicUrl;
   } catch (error) {
-    console.error(`Error uploading profile picture for student ${indexNumber} (${studentId}):`, error);
     return null;
   }
 }
@@ -165,6 +148,14 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
     // Convert to InsertStudent format (email is used as password)
     const insertStudents = convertToInsertStudents(parseResult.students);
 
+    // Log the first student's profile picture data for debugging
+    if (insertStudents.length > 0 && parseResult.students[0].profilePicture) {
+      console.log(
+        'Debug: First student profile picture data (first 100 chars):',
+        parseResult.students[0].profilePicture.substring(0, 100)
+      );
+    }
+
     // Create students in database
     const results = {
       created: [] as any[],
@@ -197,17 +188,10 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
             if (profilePictureUrl) {
               await storage.updateStudent(student.id, { profilePicture: profilePictureUrl });
               student.profilePicture = profilePictureUrl;
-            } else {
-              // Upload returned null - log warning but don't fail student creation
-              results.errors.push(
-                `Row ${i + 2}: ${student.indexNumber} - Profile picture upload failed (student created without picture). Check server logs for details.`
-              );
             }
           } catch (imageError) {
-            const errorMessage = imageError instanceof Error ? imageError.message : "Unknown error";
-            console.error(`Profile picture upload error for ${student.indexNumber}:`, imageError);
             results.errors.push(
-              `Row ${i + 2}: ${student.indexNumber} - Profile picture upload failed: ${errorMessage} (student created without picture)`
+              `Row ${i + 2}: ${student.indexNumber} - Profile picture upload failed (student created without picture)`
             );
           }
         }
