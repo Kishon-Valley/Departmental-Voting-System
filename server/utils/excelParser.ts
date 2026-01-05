@@ -50,6 +50,12 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
       console.log('Starting image extraction from Excel...');
       
       // Method 1: Check worksheet model.drawings first (more reliable)
+      console.log('Checking worksheet model:', {
+        hasModel: !!worksheet.model,
+        hasDrawings: !!(worksheet.model && (worksheet.model as any).drawings),
+        drawingsLength: worksheet.model && (worksheet.model as any).drawings ? (worksheet.model as any).drawings.length : 0
+      });
+      
       if (worksheet.model && (worksheet.model as any).drawings) {
         const drawings = (worksheet.model as any).drawings;
         console.log(`Found ${drawings.length} drawings in worksheet`);
@@ -192,14 +198,19 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
         const media = (workbook.model as any).media;
         console.log(`Trying alternative method: Found ${Array.isArray(media) ? media.length : 0} media items`);
         
-        if (Array.isArray(media) && worksheet.model && (worksheet.model as any).drawings) {
+        // Check if we have drawings
+        const hasDrawings = worksheet.model && (worksheet.model as any).drawings;
+        const drawingsCount = hasDrawings ? (worksheet.model as any).drawings.length : 0;
+        console.log(`Alternative method: Has drawings: ${!!hasDrawings}, Count: ${drawingsCount}`);
+        
+        if (Array.isArray(media) && hasDrawings) {
           const drawings = (worksheet.model as any).drawings;
           console.log(`Matching ${drawings.length} drawings with ${media.length} media items`);
           
           // Try to match drawings with media by index
           for (let drawIdx = 0; drawIdx < drawings.length && drawIdx < media.length; drawIdx++) {
             const drawing = drawings[drawIdx];
-            const mediaItem = media[drawIdx];
+            const mediaItem = media[drawIdx] as any;
             
             if (mediaItem && mediaItem.buffer && drawing && drawing.anchors && drawing.anchors.length > 0) {
               const imageBuffer = mediaItem.buffer instanceof Buffer
@@ -210,12 +221,28 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
               let row = -1;
               let col = -1;
               
+              // Log first anchor structure
+              if (drawIdx === 0) {
+                console.log('First anchor structure:', JSON.stringify({
+                  hasFrom: !!anchor.from,
+                  fromRow: anchor.from?.row,
+                  fromCol: anchor.from?.col,
+                  nativeRow: anchor.nativeRow,
+                  nativeCol: anchor.nativeCol,
+                  row: anchor.row,
+                  col: anchor.col,
+                  allKeys: Object.keys(anchor)
+                }, null, 2));
+              }
+              
               if (anchor.from) {
                 row = anchor.from.row !== undefined ? anchor.from.row : -1;
                 col = anchor.from.col !== undefined ? anchor.from.col : -1;
               }
               if (row < 0 && anchor.nativeRow !== undefined) row = anchor.nativeRow;
               if (col < 0 && anchor.nativeCol !== undefined) col = anchor.nativeCol;
+              if (row < 0 && anchor.row !== undefined) row = anchor.row;
+              if (col < 0 && anchor.col !== undefined) col = anchor.col;
               
               if (row >= 0 && col >= 0) {
                 if (!imageMap.has(row)) {
@@ -226,8 +253,27 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
                 if (drawIdx < 5) {
                   console.log(`Alternative method: Found image at row ${row}, col ${col} (drawing ${drawIdx})`);
                 }
+              } else if (drawIdx < 5) {
+                console.log(`Alternative method: Drawing ${drawIdx} has image but invalid row/col (row: ${row}, col: ${col})`);
               }
+            } else if (drawIdx < 5) {
+              console.log(`Alternative method: Drawing ${drawIdx} missing:`, {
+                hasMediaItem: !!mediaItem,
+                hasBuffer: !!(mediaItem && mediaItem.buffer),
+                hasDrawing: !!drawing,
+                hasAnchors: !!(drawing && drawing.anchors)
+              });
             }
+          }
+        } else if (Array.isArray(media) && !hasDrawings) {
+          // If no drawings but we have media, try a different approach
+          // Maybe images are stored differently - try to access via worksheet relationships
+          console.log('No drawings found, trying to access images via worksheet relationships...');
+          
+          // Check if worksheet has a relationship to media
+          if ((worksheet as any).relationships) {
+            const relationships = (worksheet as any).relationships;
+            console.log(`Found ${relationships.length || 0} relationships in worksheet`);
           }
         }
       }
