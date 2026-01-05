@@ -168,9 +168,7 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
           continue;
         }
 
-        const { profilePicture, ...studentDataWithoutPicture } = studentData;
-
-        const student = await storage.createStudent(studentDataWithoutPicture);
+        const student = await storage.createStudent(studentData);
 
         if (excelStudent.profilePicture) {
           try {
