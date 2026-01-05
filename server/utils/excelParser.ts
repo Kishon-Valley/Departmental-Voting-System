@@ -84,7 +84,7 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
 
         const name = nameValue ? String(nameValue).trim() : '';
         const indexNumber = indexNumberValue ? String(indexNumberValue).trim() : '';
-        const email = emailValue ? String(emailValue).trim() : null;
+        const rawEmail = emailValue ? String(emailValue).trim() : null;
 
         const phoneValue = columnMap['PHONE NO'] !== -1 ? row[columnMap['PHONE NO']] : null;
         const phoneNumber = phoneValue ? String(phoneValue).trim() : null;
@@ -110,14 +110,15 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
         }
 
         // Email is required (used as password)
-        if (!email || email.length === 0) {
+        if (!rawEmail || rawEmail.length === 0) {
           errors.push(`Row ${i + 1}: EMAIL is required (used as password)`);
           continue;
         }
 
-        // Validate email format
-        if (!isValidEmail(email)) {
-          errors.push(`Row ${i + 1}: Invalid email format: ${email}`);
+        // Try to normalize/extract email from messy cell content
+        const email = normalizeEmail(rawEmail);
+        if (!email) {
+          errors.push(`Row ${i + 1}: Invalid email format: ${rawEmail}`);
           continue;
         }
 
@@ -125,7 +126,7 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
           name,
           indexNumber,
           phoneNumber,
-          email: email && isValidEmail(email) ? email : null,
+          email,
           profilePicture,
         });
       } catch (error) {
@@ -160,6 +161,34 @@ function isValidIndexNumber(indexNumber: string): boolean {
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
+}
+
+/**
+ * Normalize/extract email from a potentially messy cell value.
+ * Examples it will fix:
+ * - "1. john@example.com" -> "john@example.com"
+ * - ": john@example.com"  -> "john@example.com"
+ * - "N" or any string without an email -> null
+ */
+function normalizeEmail(value: string | null): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+
+  // Fast path: already looks like a valid email
+  if (isValidEmail(trimmed)) {
+    return trimmed;
+  }
+
+  // Try to extract the first email-like substring from the text
+  const emailPattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+  const match = trimmed.match(emailPattern);
+
+  if (match && isValidEmail(match[0])) {
+    return match[0];
+  }
+
+  return null;
 }
 
 /**
