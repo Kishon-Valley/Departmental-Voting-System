@@ -135,8 +135,8 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
       });
     }
 
-    // Parse Excel file
-    const parseResult = parseExcelFile(fileBuffer);
+    // Parse Excel file (now async)
+    const parseResult = await parseExcelFile(fileBuffer);
 
     if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
       return res.status(400).json({
