@@ -397,6 +397,8 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
 
     // Get ordered media array if available (for sequential matching)
     const orderedMedia = (imageMap as any).__orderedMedia as Buffer[] | undefined;
+    // Track which images from orderedMedia have been used (by Excel row number)
+    const usedImages = new Set<number>();
 
     // Process data rows
     for (let i = 1; i < jsonData.length; i++) {
@@ -424,8 +426,39 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
         const pictureColIndex = columnMap['PASSPORT SIZED PICTURE'];
         const excelRowNumber = i + 1; // Excel row number (1-based, row 1 is header, row 2 is first data)
         const dataRowIndex = i; // Index in jsonData array (0-based, index 0 is header, index 1 is first data)
-        
-        // If no picture from cell value, try to get from embedded images
+
+        // Validate required fields FIRST (before assigning images)
+        if (!name || name.length === 0) {
+          errors.push(`Row ${i + 1}: Missing NAME`);
+          continue;
+        }
+
+        if (!indexNumber || indexNumber.length === 0) {
+          errors.push(`Row ${i + 1}: Missing INDEX NO`);
+          continue;
+        }
+
+        // Validate index number format: PS/LAB/22/0001
+        if (!isValidIndexNumber(indexNumber)) {
+          errors.push(`Row ${i + 1}: Invalid index number format. Expected format: PS/LAB/YY/#### (e.g., PS/LAB/22/0001)`);
+          continue;
+        }
+
+        // Email is required (used as password)
+        // If no email exists, skip this row silently (don't add to errors)
+        if (!rawEmail || rawEmail.length === 0) {
+          continue; // Skip row without email, don't add to errors
+        }
+
+        // Try to normalize/extract email from messy cell content
+        const email = normalizeEmail(rawEmail);
+        if (!email) {
+          // Skip rows with invalid email format (don't add to errors)
+          continue;
+        }
+
+        // At this point, we know this row will be processed
+        // Now assign image (if not already in cell value)
         if (!profilePicture || profilePicture.length === 0) {
           // First, try imageMap (for cases where images were matched by Excel row number)
           // This handles the case where images were pre-assigned to Excel row numbers via drawings/anchors
@@ -470,21 +503,23 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
             }
           }
           
-          // If still no image, try ordered media array (sequential matching by Excel row number)
+          // If still no image, try ordered media array by Excel row number
           // Match images to Excel row numbers: Excel row 2 = orderedMedia[0], Excel row 3 = orderedMedia[1], etc.
           if (!profilePicture && orderedMedia && orderedMedia.length > 0) {
             // Excel row 2 (first data row) maps to orderedMedia[0]
             // Excel row 3 maps to orderedMedia[1], etc.
             const imageIndex = excelRowNumber - 2; // Convert Excel row to 0-based index
             
-            if (imageIndex >= 0 && imageIndex < orderedMedia.length) {
+            // Only use this image if it hasn't been used yet and is within bounds
+            if (imageIndex >= 0 && imageIndex < orderedMedia.length && !usedImages.has(imageIndex)) {
               const imageBuffer = orderedMedia[imageIndex];
               if (imageBuffer && imageBuffer.length > 0) {
                 const base64 = imageBuffer.toString('base64');
                 const mimeType = detectImageType(imageBuffer) || 'image/jpeg';
                 profilePicture = `data:${mimeType};base64,${base64}`;
+                usedImages.add(imageIndex); // Mark this image as used
                 
-                if (i <= 2) {
+                if (imageIndex < 3) {
                   console.log(`Ordered match: Image ${imageIndex} -> Excel row ${excelRowNumber} (data row ${i}, index: ${indexNumber})`);
                 }
               }
@@ -495,36 +530,6 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
         // If profilePicture is still empty or just whitespace, set to null
         if (profilePicture && profilePicture.trim().length === 0) {
           profilePicture = null;
-        }
-
-        // Validate required fields
-        if (!name || name.length === 0) {
-          errors.push(`Row ${i + 1}: Missing NAME`);
-          continue;
-        }
-
-        if (!indexNumber || indexNumber.length === 0) {
-          errors.push(`Row ${i + 1}: Missing INDEX NO`);
-          continue;
-        }
-
-        // Validate index number format: PS/LAB/22/0001
-        if (!isValidIndexNumber(indexNumber)) {
-          errors.push(`Row ${i + 1}: Invalid index number format. Expected format: PS/LAB/YY/#### (e.g., PS/LAB/22/0001)`);
-          continue;
-        }
-
-        // Email is required (used as password)
-        // If no email exists, skip this row silently (don't add to errors)
-        if (!rawEmail || rawEmail.length === 0) {
-          continue; // Skip row without email, don't add to errors
-        }
-
-        // Try to normalize/extract email from messy cell content
-        const email = normalizeEmail(rawEmail);
-        if (!email) {
-          // Skip rows with invalid email format (don't add to errors)
-          continue;
         }
 
         students.push({
