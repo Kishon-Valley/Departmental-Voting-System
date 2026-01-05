@@ -266,18 +266,12 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
             }
           }
         } else if (Array.isArray(media) && !hasDrawings) {
-          // If no drawings but we have media, try a different approach
-          // Since we can't match via anchors, we'll match by order
-          // Assumption: Images are in the same order as data rows, starting from row 2 (first data row)
-          console.log('No drawings found, trying to match images to rows by order...');
-          console.log(`We have ${media.length} media items. Will match to data rows starting from row 2.`);
+          // If no drawings but we have media, store images in order for later matching
+          // We'll match them to actual data rows (not Excel row numbers) when processing
+          console.log('No drawings found, storing images for ordered matching to data rows...');
+          console.log(`We have ${media.length} media items. Will match to data rows as they are processed.`);
           
-          // Get the picture column index from headers (we'll need to do this later, but for now assume column E = index 4)
-          // Actually, we need to know which column has pictures - this will be determined when we process rows
-          // For now, store all media items and we'll match them when processing rows
-          
-          // Store media items in order - we'll match them to rows when processing
-          // Since we don't know the column yet, we'll store them temporarily
+          // Store media items in order - we'll match them to data rows when processing
           const orderedMedia: Buffer[] = [];
           for (let mIdx = 0; mIdx < media.length; mIdx++) {
             const mediaItem = media[mIdx] as any;
@@ -291,33 +285,14 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
           
           console.log(`Stored ${orderedMedia.length} images for ordered matching`);
           
-          // We'll match these to rows when we process the data rows
-          // Store in a way we can access later - use a special marker
-          // Actually, let's match them now assuming:
-          // - Row 2 (Excel) = data row 1 = image 0
-          // - Row 3 (Excel) = data row 2 = image 1
-          // etc.
-          const pictureColIndex = 4; // Column E (0-based index 4) - PASSPORT SIZED PICTURE
-          
-          for (let imgIdx = 0; imgIdx < orderedMedia.length; imgIdx++) {
-            // Excel row number = imgIdx + 2 (row 1 is header, row 2 is first data row)
-            const excelRowNumber = imgIdx + 2;
-            const imageBuffer = orderedMedia[imgIdx];
-            
-            if (imageBuffer && imageBuffer.length > 0) {
-              if (!imageMap.has(excelRowNumber)) {
-                imageMap.set(excelRowNumber, new Map());
-              }
-              imageMap.get(excelRowNumber)!.set(pictureColIndex, imageBuffer);
-              imagesFound++;
-              
-              if (imgIdx < 5) {
-                console.log(`Ordered match: Image ${imgIdx} -> Excel row ${excelRowNumber}, col ${pictureColIndex}`);
-              }
-            }
+          // Store ordered media in a way we can access it later
+          // We'll use a special marker in the imageMap to store the ordered array
+          // Use row -1 as a marker to store the ordered media array
+          if (orderedMedia.length > 0) {
+            (imageMap as any).__orderedMedia = orderedMedia;
+            imagesFound = orderedMedia.length; // Track that we found images
+            console.log(`Stored ${orderedMedia.length} images for sequential matching to data rows`);
           }
-          
-          console.log(`Ordered matching complete: ${imagesFound} images matched to rows`);
         }
       }
       
@@ -420,6 +395,9 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
       return { students, errors };
     }
 
+    // Get ordered media array if available (for sequential matching)
+    const orderedMedia = (imageMap as any).__orderedMedia as Buffer[] | undefined;
+
     // Process data rows
     for (let i = 1; i < jsonData.length; i++) {
       const row = jsonData[i];
@@ -447,21 +425,10 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
         const excelRowNumber = i + 1; // Excel row number (1-based, row 1 is header, row 2 is first data)
         const dataRowIndex = i; // Index in jsonData array (0-based, index 0 is header, index 1 is first data)
         
-        // Debug logging for first few rows
-        if (i <= 2) {
-          console.log(`Row ${excelRowNumber} (data index ${dataRowIndex}):`, {
-            pictureColIndex,
-            pictureValue: pictureValue ? `${String(pictureValue).substring(0, 50)}...` : null,
-            imageMapHasRow0: imageMap.has(dataRowIndex),
-            imageMapHasRow1: imageMap.has(excelRowNumber),
-            imageMapSize: imageMap.size,
-            imageMapKeys: Array.from(imageMap.keys())
-          });
-        }
-        
-        // If no picture from cell value, check if there's an embedded image in this row/column
-        // This handles cases where ExcelJS image extraction didn't populate the cell value
+        // If no picture from cell value, try to get from embedded images
         if (!profilePicture || profilePicture.length === 0) {
+          // First, try imageMap (for cases where images were matched by Excel row number)
+          // This handles the case where images were pre-assigned to Excel row numbers via drawings/anchors
           if (pictureColIndex !== -1) {
             // Try multiple row index combinations
             const rowIndicesToTry = [
@@ -501,23 +468,27 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
                 if (profilePicture) break;
               }
             }
-            
-            // If still no image, log available images for debugging
-            if (!profilePicture && i <= 2 && imageMap.size > 0) {
-              console.log(`No image found for row ${excelRowNumber}, col ${pictureColIndex}. Available images:`, 
-                Array.from(imageMap.entries()).map(([row, cols]) => 
-                  `row ${row}: cols ${Array.from(cols.keys()).join(', ')}`
-                ).join('; ')
-              );
-            }
-          } else {
-            if (i <= 2) {
-              console.log(`Row ${excelRowNumber}: PASSPORT SIZED PICTURE column not found in header`);
-            }
           }
-        } else {
-          if (i <= 2) {
-            console.log(`Row ${excelRowNumber}: Found picture value in cell (length: ${profilePicture.length})`);
+          
+          // If still no image, try ordered media array (sequential matching by Excel row number)
+          // Match images to Excel row numbers: Excel row 2 = orderedMedia[0], Excel row 3 = orderedMedia[1], etc.
+          if (!profilePicture && orderedMedia && orderedMedia.length > 0) {
+            // Excel row 2 (first data row) maps to orderedMedia[0]
+            // Excel row 3 maps to orderedMedia[1], etc.
+            const imageIndex = excelRowNumber - 2; // Convert Excel row to 0-based index
+            
+            if (imageIndex >= 0 && imageIndex < orderedMedia.length) {
+              const imageBuffer = orderedMedia[imageIndex];
+              if (imageBuffer && imageBuffer.length > 0) {
+                const base64 = imageBuffer.toString('base64');
+                const mimeType = detectImageType(imageBuffer) || 'image/jpeg';
+                profilePicture = `data:${mimeType};base64,${base64}`;
+                
+                if (i <= 2) {
+                  console.log(`Ordered match: Image ${imageIndex} -> Excel row ${excelRowNumber} (data row ${i}, index: ${indexNumber})`);
+                }
+              }
+            }
           }
         }
         
