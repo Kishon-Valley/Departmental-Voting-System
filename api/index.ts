@@ -270,6 +270,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Extract the path from Vercel's request
   let path = req.url || '';
   
+  // Track if response has been sent
+  let responseEnded = false;
+  
   // Handle file uploads for multipart/form-data
   let parsedBody = req.body || {};
   let parsedFile: any = undefined;
@@ -321,11 +324,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : req.headers.cookie;
   }
   
-  // Also check for Cookie (capital C)
+  // Also check for Cookie (capital C) and other variations
   if (req.headers.Cookie && !headers.cookie) {
     headers.cookie = Array.isArray(req.headers.Cookie)
       ? req.headers.Cookie.join('; ')
       : req.headers.Cookie;
+  }
+  
+  // Also check Authorization header for Bearer token (for API clients)
+  if (req.headers.authorization && !headers.authorization) {
+    headers.authorization = Array.isArray(req.headers.authorization)
+      ? req.headers.authorization[0]
+      : req.headers.authorization;
+  }
+  
+  if (req.headers.Authorization && !headers.authorization) {
+    headers.authorization = Array.isArray(req.headers.Authorization)
+      ? req.headers.Authorization[0]
+      : req.headers.Authorization;
   }
   
   const expressReq: any = {
@@ -407,7 +423,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Create Express-compatible response object
   let statusCode = 200;
   const responseHeaders: Record<string, string | string[]> = {};
-  let responseEnded = false;
   
   const expressRes = {
     ...res,
@@ -543,27 +558,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     },
   } as any;
   
-  // Manually invoke multer middleware for the specific route
-  if (path.includes('/admin/students/upload-excel')) {
-    await new Promise<void>((resolve, reject) => {
-      uploadExcelMiddleware(expressReq, expressRes, (err: any) => {
-        if (err) {
-          console.error('Multer error:', err);
-          expressRes.status(400).json({ message: err.message });
-          return reject(err);
-        }
-        resolve();
-      });
-    });
-  }
 
   // Convert Vercel request/response to Express-compatible format
   return new Promise<void>((resolve, reject) => {
     expressApp(expressReq, expressRes, async (err?: any) => {
       if (err) {
         console.error('Express error:', err);
+        // If response hasn't been sent, send error response
+        if (!responseEnded) {
+          const status = err.status || err.statusCode || 500;
+          const message = err.message || "Internal Server Error";
+          res.status(status).json({ message });
+        }
         reject(err);
         return;
+      }
+      
+      // If no response was sent, send 404
+      if (!responseEnded) {
+        res.status(404).json({ message: "Route not found" });
       }
       
       resolve();

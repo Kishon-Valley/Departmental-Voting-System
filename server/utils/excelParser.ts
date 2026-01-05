@@ -78,11 +78,19 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
       }
 
       try {
-        const name = row[columnMap['NAME']]?.toString().trim();
-        const indexNumber = row[columnMap['INDEX NO']]?.toString().trim();
-        const phoneNumber = columnMap['PHONE NO'] !== -1 ? row[columnMap['PHONE NO']]?.toString().trim() || null : null;
-        const email = row[columnMap['EMAIL']]?.toString().trim() || null;
-        const profilePicture = columnMap['PASSPORT SIZED PICTURE'] !== -1 ? row[columnMap['PASSPORT SIZED PICTURE']]?.toString().trim() || null : null;
+        const nameValue = row[columnMap['NAME']];
+        const indexNumberValue = row[columnMap['INDEX NO']];
+        const emailValue = row[columnMap['EMAIL']];
+
+        const name = nameValue ? String(nameValue).trim() : '';
+        const indexNumber = indexNumberValue ? String(indexNumberValue).trim() : '';
+        const email = emailValue ? String(emailValue).trim() : null;
+
+        const phoneValue = columnMap['PHONE NO'] !== -1 ? row[columnMap['PHONE NO']] : null;
+        const phoneNumber = phoneValue ? String(phoneValue).trim() : null;
+
+        const pictureValue = columnMap['PASSPORT SIZED PICTURE'] !== -1 ? row[columnMap['PASSPORT SIZED PICTURE']] : null;
+        const profilePicture = pictureValue ? String(pictureValue).trim() : null;
 
         // Validate required fields
         if (!name || name.length === 0) {
