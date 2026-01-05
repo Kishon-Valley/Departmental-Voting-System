@@ -49,85 +49,92 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
     try {
       console.log('Starting image extraction from Excel...');
       
-      // Method 1: Check workbook model.media (primary method for ExcelJS)
-      if (workbook.model && (workbook.model as any).media) {
-        const media = (workbook.model as any).media;
-        console.log(`Found workbook media: ${Array.isArray(media) ? media.length : 'not array'} items`);
-        
-        if (Array.isArray(media)) {
-          // Media array contains image data
-          for (let mediaIndex = 0; mediaIndex < media.length; mediaIndex++) {
-            const mediaItem = media[mediaIndex];
-            if (mediaItem && mediaItem.buffer) {
-              const imageBuffer = mediaItem.buffer instanceof Buffer
-                ? mediaItem.buffer
-                : Buffer.from(mediaItem.buffer);
-              
-              // Now we need to find which cell this image belongs to
-              // Check worksheet drawings/anchors to match media index
-              if (worksheet.model && (worksheet.model as any).drawings) {
-                const drawings = (worksheet.model as any).drawings;
-                for (const drawing of drawings) {
-                  // Check if this drawing references this media item
-                  if (drawing.image && drawing.image.index === mediaIndex) {
-                    if (drawing.anchors && drawing.anchors.length > 0) {
-                      const anchor = drawing.anchors[0];
-                      let row = -1;
-                      let col = -1;
-                      
-                      // Try multiple ways to get row/col from anchor
-                      if (anchor.from) {
-                        row = anchor.from.row !== undefined ? anchor.from.row : -1;
-                        col = anchor.from.col !== undefined ? anchor.from.col : -1;
-                      } else if (anchor.nativeRow !== undefined && anchor.nativeCol !== undefined) {
-                        row = anchor.nativeRow;
-                        col = anchor.nativeCol;
-                      } else if (anchor.row !== undefined && anchor.col !== undefined) {
-                        row = anchor.row;
-                        col = anchor.col;
-                      }
-                      
-                      if (row >= 0 && col >= 0) {
-                        if (!imageMap.has(row)) {
-                          imageMap.set(row, new Map());
-                        }
-                        imageMap.get(row)!.set(col, imageBuffer);
-                        imagesFound++;
-                        console.log(`Found image at row ${row}, col ${col} (media index ${mediaIndex})`);
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      // Method 2: Check worksheet model.drawings directly
+      // Method 1: Check worksheet model.drawings first (more reliable)
       if (worksheet.model && (worksheet.model as any).drawings) {
         const drawings = (worksheet.model as any).drawings;
         console.log(`Found ${drawings.length} drawings in worksheet`);
         
+        // Get media array if available
+        const media = (workbook.model && (workbook.model as any).media) ? (workbook.model as any).media : null;
+        console.log(`Media array: ${media && Array.isArray(media) ? media.length : 'not available'} items`);
+        
         for (let drawIndex = 0; drawIndex < drawings.length; drawIndex++) {
           const drawing = drawings[drawIndex];
+          
+          // Log first drawing structure for debugging
+          if (drawIndex === 0) {
+            console.log('First drawing structure:', JSON.stringify({
+              hasImage: !!drawing.image,
+              imageIndex: drawing.image?.index,
+              imageType: drawing.image?.type,
+              hasAnchors: !!drawing.anchors,
+              anchorCount: drawing.anchors?.length,
+              firstAnchor: drawing.anchors?.[0] ? Object.keys(drawing.anchors[0]) : null
+            }, null, 2));
+          }
           
           // Check if drawing has image data
           if (drawing.image) {
             let imageBuffer: Buffer | null = null;
+            let mediaIndex: number | null = null;
             
-            // Try to get buffer from drawing.image
+            // Try to get buffer from drawing.image directly
             if (drawing.image.buffer) {
               imageBuffer = drawing.image.buffer instanceof Buffer
                 ? drawing.image.buffer
                 : Buffer.from(drawing.image.buffer);
-            } else if (drawing.image.index !== undefined && workbook.model && (workbook.model as any).media) {
-              // Get image from media array using index
-              const media = (workbook.model as any).media;
-              if (Array.isArray(media) && media[drawing.image.index] && media[drawing.image.index].buffer) {
-                imageBuffer = media[drawing.image.index].buffer instanceof Buffer
-                  ? media[drawing.image.index].buffer
-                  : Buffer.from(media[drawing.image.index].buffer);
+            } 
+            // Try to get media index from various possible properties
+            else if (drawing.image.index !== undefined) {
+              mediaIndex = drawing.image.index;
+            } else if (drawing.image.mediaIndex !== undefined) {
+              mediaIndex = drawing.image.mediaIndex;
+            } else if (drawing.image.rId !== undefined) {
+              // rId might need to be converted to media index
+              mediaIndex = drawing.image.rId;
+            }
+            
+            // If we have a media index, get the image from media array
+            if (!imageBuffer && mediaIndex !== null && media && Array.isArray(media)) {
+              // Try direct index
+              if (typeof mediaIndex === 'number' && mediaIndex >= 0 && mediaIndex < media.length) {
+                const mediaItem = media[mediaIndex] as any;
+                if (mediaItem && mediaItem.buffer) {
+                  imageBuffer = mediaItem.buffer instanceof Buffer
+                    ? mediaItem.buffer
+                    : Buffer.from(mediaItem.buffer);
+                }
+              }
+            }
+            // Try rId-based lookup (sometimes media is indexed by rId) - only if media is object
+            if (!imageBuffer && mediaIndex !== null && media && !Array.isArray(media) && typeof media === 'object') {
+              const rIdKey = `rId${mediaIndex}`;
+              const mediaItem = (media as Record<string, any>)[rIdKey];
+              if (mediaItem && mediaItem.buffer) {
+                imageBuffer = mediaItem.buffer instanceof Buffer
+                  ? mediaItem.buffer
+                  : Buffer.from(mediaItem.buffer);
+              }
+            }
+            
+            // If still no buffer, try iterating through all media to find a match
+            if (!imageBuffer && media && Array.isArray(media)) {
+              // Sometimes the relationship ID doesn't match the array index
+              // Try to find by checking all media items
+              for (let mIdx = 0; mIdx < Math.min(media.length, 200); mIdx++) {
+                if (media[mIdx] && media[mIdx].buffer) {
+                  // For now, we'll match drawings to media in order
+                  // This is a fallback - ideally we'd use the proper index
+                  if (drawIndex < media.length) {
+                    const testBuffer = media[drawIndex].buffer instanceof Buffer
+                      ? media[drawIndex].buffer
+                      : Buffer.from(media[drawIndex].buffer);
+                    if (testBuffer && testBuffer.length > 0) {
+                      imageBuffer = testBuffer;
+                      break;
+                    }
+                  }
+                }
               }
             }
             
@@ -141,10 +148,18 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
                 row = anchor.from.row !== undefined ? anchor.from.row : -1;
                 col = anchor.from.col !== undefined ? anchor.from.col : -1;
               }
+              // Try alternative anchor properties
               if (row < 0 && anchor.nativeRow !== undefined) row = anchor.nativeRow;
               if (col < 0 && anchor.nativeCol !== undefined) col = anchor.nativeCol;
               if (row < 0 && anchor.row !== undefined) row = anchor.row;
               if (col < 0 && anchor.col !== undefined) col = anchor.col;
+              // Try to/br properties
+              if (row < 0 && anchor.to && anchor.to.row !== undefined) row = anchor.to.row;
+              if (col < 0 && anchor.to && anchor.to.col !== undefined) col = anchor.to.col;
+              // Try editAs property locations
+              if (row < 0 && anchor.editAs) {
+                // Sometimes position is in editAs
+              }
               
               if (row >= 0 && col >= 0) {
                 if (!imageMap.has(row)) {
@@ -152,7 +167,65 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
                 }
                 imageMap.get(row)!.set(col, imageBuffer);
                 imagesFound++;
-                console.log(`Found image via drawing at row ${row}, col ${col}`);
+                if (drawIndex < 5) {
+                  console.log(`Found image via drawing ${drawIndex} at row ${row}, col ${col} (mediaIndex: ${mediaIndex})`);
+                }
+              } else if (drawIndex < 5) {
+                console.log(`Drawing ${drawIndex} has image but invalid row/col. Anchor:`, JSON.stringify({
+                  from: anchor.from,
+                  to: anchor.to,
+                  nativeRow: anchor.nativeRow,
+                  nativeCol: anchor.nativeCol,
+                  row: anchor.row,
+                  col: anchor.col
+                }));
+              }
+            } else if (drawIndex < 5) {
+              console.log(`Drawing ${drawIndex} missing imageBuffer or anchors. Has buffer: ${!!imageBuffer}, Has anchors: ${!!drawing.anchors}`);
+            }
+          }
+        }
+      }
+      
+      // Method 2: Alternative approach - iterate media and try to match with drawings
+      if (imagesFound === 0 && workbook.model && (workbook.model as any).media) {
+        const media = (workbook.model as any).media;
+        console.log(`Trying alternative method: Found ${Array.isArray(media) ? media.length : 0} media items`);
+        
+        if (Array.isArray(media) && worksheet.model && (worksheet.model as any).drawings) {
+          const drawings = (worksheet.model as any).drawings;
+          console.log(`Matching ${drawings.length} drawings with ${media.length} media items`);
+          
+          // Try to match drawings with media by index
+          for (let drawIdx = 0; drawIdx < drawings.length && drawIdx < media.length; drawIdx++) {
+            const drawing = drawings[drawIdx];
+            const mediaItem = media[drawIdx];
+            
+            if (mediaItem && mediaItem.buffer && drawing && drawing.anchors && drawing.anchors.length > 0) {
+              const imageBuffer = mediaItem.buffer instanceof Buffer
+                ? mediaItem.buffer
+                : Buffer.from(mediaItem.buffer);
+              
+              const anchor = drawing.anchors[0];
+              let row = -1;
+              let col = -1;
+              
+              if (anchor.from) {
+                row = anchor.from.row !== undefined ? anchor.from.row : -1;
+                col = anchor.from.col !== undefined ? anchor.from.col : -1;
+              }
+              if (row < 0 && anchor.nativeRow !== undefined) row = anchor.nativeRow;
+              if (col < 0 && anchor.nativeCol !== undefined) col = anchor.nativeCol;
+              
+              if (row >= 0 && col >= 0) {
+                if (!imageMap.has(row)) {
+                  imageMap.set(row, new Map());
+                }
+                imageMap.get(row)!.set(col, imageBuffer);
+                imagesFound++;
+                if (drawIdx < 5) {
+                  console.log(`Alternative method: Found image at row ${row}, col ${col} (drawing ${drawIdx})`);
+                }
               }
             }
           }
