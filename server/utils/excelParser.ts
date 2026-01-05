@@ -110,17 +110,15 @@ export function parseExcelFile(buffer: Buffer): ParsedExcelData {
         }
 
         // Email is required (used as password)
+        // If no email exists, skip this row silently (don't add to errors)
         if (!rawEmail || rawEmail.length === 0) {
-          errors.push(`Row ${i + 1}: EMAIL is required (used as password)`);
-          continue;
+          continue; // Skip row without email, don't add to errors
         }
 
         // Try to normalize/extract email from messy cell content
         const email = normalizeEmail(rawEmail);
         if (!email) {
-          // Show the raw value and its length to help debug hidden characters
-          const displayValue = rawEmail.length > 50 ? rawEmail.substring(0, 50) + '...' : rawEmail;
-          errors.push(`Row ${i + 1}: Invalid email format: "${displayValue}"`);
+          // Skip rows with invalid email format (don't add to errors)
           continue;
         }
 
