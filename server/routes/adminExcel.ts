@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage.js";
 import { parseExcelFile, convertToInsertStudents } from "../utils/excelParser.js";
+import { uploadImageToStorage } from "../utils/excelImageExtractor.js";
 
 /**
  * Process Excel file from Supabase Storage URL
@@ -49,7 +50,7 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
       });
     }
 
-    // Parse Excel file (now async)
+    // Parse Excel file (now async) - includes image extraction
     const parseResult = await parseExcelFile(fileBuffer);
 
     if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
@@ -62,11 +63,13 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
     // Convert to InsertStudent format (email is used as password)
     const insertStudents = convertToInsertStudents(parseResult.students);
 
-    // Create students in database
+    // Create students in database and upload images
     const results = {
       created: [] as any[],
       skipped: [] as string[],
       errors: [] as string[],
+      imagesUploaded: 0,
+      imagesFailed: 0,
     };
 
     for (let i = 0; i < insertStudents.length; i++) {
@@ -84,10 +87,42 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
 
         const student = await storage.createStudent(studentData);
 
-        // Profile pictures are not extracted from Excel files
-        // Image upload will be handled separately through a different feature
+        // Extract and upload image if available for this student's row
+        const excelRowNumber = excelStudent.excelRowNumber;
+        const extractedImage = parseResult.images.get(excelRowNumber);
+        
+        if (extractedImage) {
+          try {
+            const imageUrl = await uploadImageToStorage(
+              extractedImage.buffer,
+              extractedImage.extension,
+              student.id,
+              student.indexNumber
+            );
+            
+            // Update student with profile picture URL
+            await storage.updateStudent(student.id, {
+              profilePicture: imageUrl,
+            });
+            
+            results.imagesUploaded++;
+          } catch (imageError) {
+            results.imagesFailed++;
+            results.errors.push(
+              `Row ${excelRowNumber}: Failed to upload image for ${studentData.indexNumber} - ${imageError instanceof Error ? imageError.message : "Unknown error"}`
+            );
+            // Continue even if image upload fails - student is still created
+          }
+        }
 
         const { password, ...studentWithoutPassword } = student;
+        // Update with profile picture if it was uploaded
+        if (extractedImage) {
+          const updatedStudent = await storage.getStudentByIndexNumber(student.indexNumber);
+          if (updatedStudent) {
+            studentWithoutPassword.profilePicture = updatedStudent.profilePicture;
+          }
+        }
         results.created.push(studentWithoutPassword);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -105,6 +140,8 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
         created: results.created.length,
         skipped: results.skipped.length,
         errors: results.errors.length,
+        imagesUploaded: results.imagesUploaded,
+        imagesFailed: results.imagesFailed,
       },
       created: results.created,
       skipped: results.skipped,

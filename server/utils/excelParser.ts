@@ -1,18 +1,21 @@
 import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import type { InsertStudent } from "../../shared/schema.js";
+import { extractImagesFromExcel, type ExtractedImage } from "./excelImageExtractor.js";
 
 export interface ExcelStudentRow {
   name: string;
   indexNumber: string;
   phoneNumber: string | null;
   email: string | null;
-  profilePicture: string | null; // Always null - image extraction removed
+  profilePicture: string | null; // Can contain image URL if extracted from Excel
+  excelRowNumber: number; // Excel row number (1-based, includes header) for image matching
 }
 
 export interface ParsedExcelData {
   students: ExcelStudentRow[];
   errors: string[];
+  images: Map<number, ExtractedImage>; // Map of Excel row number to extracted image
 }
 
 /**
@@ -22,11 +25,27 @@ export interface ParsedExcelData {
  * Column 2: INDEX NO
  * Column 3: PHONE NO
  * Column 4: EMAIL
- * Note: Profile pictures are not extracted from Excel files
+ * Column 5: PICTURE (optional - images embedded in cells)
+ * 
+ * Images are extracted from Excel and matched to students by row number
  */
 export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
   const errors: string[] = [];
   const students: ExcelStudentRow[] = [];
+  const images = new Map<number, ExtractedImage>();
+
+  // First, extract images from Excel
+  try {
+    const imageResult = await extractImagesFromExcel(buffer);
+    imageResult.images.forEach((image, rowNumber) => {
+      images.set(rowNumber, image);
+    });
+    // Add image extraction errors to main errors array
+    errors.push(...imageResult.errors);
+  } catch (imageError) {
+    errors.push(`Image extraction warning: ${imageError instanceof Error ? imageError.message : "Unknown error"}`);
+    // Continue with data extraction even if image extraction fails
+  }
 
   try {
     // Use ExcelJS to read workbook
@@ -37,7 +56,7 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
     const worksheet = workbook.worksheets[0];
     if (!worksheet) {
       errors.push("Excel file has no sheets");
-      return { students, errors };
+      return { students, errors, images };
     }
 
     // Convert worksheet to array format
@@ -68,7 +87,7 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
 
     if (jsonData.length < 2) {
       errors.push("Excel file must have at least a header row and one data row");
-      return { students, errors };
+      return { students, errors, images };
     }
 
     const headerRow = jsonData[0].map(header => 
@@ -84,7 +103,7 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
 
     if (columnMap['NAME'] === -1 || columnMap['INDEX NO'] === -1 || columnMap['EMAIL'] === -1) {
       errors.push("Excel file must contain 'NAME', 'INDEX NO', and 'EMAIL' columns.");
-      return { students, errors };
+      return { students, errors, images };
     }
 
     // Process data rows
@@ -107,8 +126,11 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
         const phoneValue = columnMap['PHONE NO'] !== -1 ? row[columnMap['PHONE NO']] : null;
         const phoneNumber = phoneValue ? String(phoneValue).trim() : null;
 
-        // Profile pictures are not extracted from Excel - always set to null
-        const profilePicture: string | null = null;
+        // Try to find matching image for this row (Excel row number is i + 1, since i starts at 1 for data rows)
+        // Excel row numbers: header is row 1, first data row is row 2, etc.
+        const excelRowNumber = i + 1; // i starts at 1 (after header), so row 2, 3, 4...
+        const extractedImage = images.get(excelRowNumber);
+        const profilePicture: string | null = extractedImage ? `EXTRACTED_IMAGE_ROW_${excelRowNumber}` : null;
 
         // Validate required fields
         if (!name || name.length === 0) {
@@ -146,6 +168,7 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
           phoneNumber,
           email,
           profilePicture,
+          excelRowNumber,
         });
       } catch (error) {
         errors.push(`Row ${i + 1}: Error parsing row - ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -156,31 +179,33 @@ export async function parseExcelFile(buffer: Buffer): Promise<ParsedExcelData> {
       errors.push("No valid student data found in Excel file");
     }
 
-    return { students, errors };
+    return { students, errors, images };
   } catch (error) {
     // Fallback to xlsx library if ExcelJS fails
     try {
       return parseExcelFileFallback(buffer);
     } catch (fallbackError) {
       errors.push(`Failed to parse Excel file: ${error instanceof Error ? error.message : "Unknown error"}`);
-      return { students, errors };
+      return { students, errors, images };
     }
   }
 }
 
 /**
  * Fallback parser using xlsx library
+ * Note: xlsx library doesn't support image extraction, so images will be empty
  */
 function parseExcelFileFallback(buffer: Buffer): ParsedExcelData {
   const errors: string[] = [];
   const students: ExcelStudentRow[] = [];
+  const images = new Map<number, ExtractedImage>();
 
   try {
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
       errors.push("Excel file has no sheets");
-      return { students, errors };
+      return { students, errors, images };
     }
 
     const worksheet = workbook.Sheets[sheetName];
@@ -192,7 +217,7 @@ function parseExcelFileFallback(buffer: Buffer): ParsedExcelData {
 
     if (jsonData.length < 2) {
       errors.push("Excel file must have at least a header row and one data row");
-      return { students, errors };
+      return { students, errors, images };
     }
 
     const headerRow = jsonData[0].map(header => 
@@ -208,7 +233,7 @@ function parseExcelFileFallback(buffer: Buffer): ParsedExcelData {
 
     if (columnMap['NAME'] === -1 || columnMap['INDEX NO'] === -1 || columnMap['EMAIL'] === -1) {
       errors.push("Excel file must contain 'NAME', 'INDEX NO', and 'EMAIL' columns.");
-      return { students, errors };
+      return { students, errors, images };
     }
 
     // Process data rows (same logic as main parser)
@@ -231,7 +256,8 @@ function parseExcelFileFallback(buffer: Buffer): ParsedExcelData {
         const phoneValue = columnMap['PHONE NO'] !== -1 ? row[columnMap['PHONE NO']] : null;
         const phoneNumber = phoneValue ? String(phoneValue).trim() : null;
 
-        // Profile pictures are not extracted from Excel - always set to null
+        // xlsx library doesn't support image extraction
+        const excelRowNumber = i + 1;
         const profilePicture: string | null = null;
 
         if (!name || name.length === 0) {
@@ -264,6 +290,7 @@ function parseExcelFileFallback(buffer: Buffer): ParsedExcelData {
           phoneNumber,
           email,
           profilePicture,
+          excelRowNumber,
         });
       } catch (error) {
         errors.push(`Row ${i + 1}: Error parsing row - ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -274,10 +301,10 @@ function parseExcelFileFallback(buffer: Buffer): ParsedExcelData {
       errors.push("No valid student data found in Excel file");
     }
 
-    return { students, errors };
+    return { students, errors, images };
   } catch (error) {
     errors.push(`Failed to parse Excel file: ${error instanceof Error ? error.message : "Unknown error"}`);
-    return { students, errors };
+    return { students, errors, images };
   }
 }
 
