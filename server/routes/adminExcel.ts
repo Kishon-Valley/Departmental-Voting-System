@@ -53,6 +53,11 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
     // Parse Excel file (now async) - includes image extraction
     const parseResult = await parseExcelFile(fileBuffer);
 
+    console.log(`[Excel Upload] Parsed ${parseResult.students.length} students, found ${parseResult.images.size} images`);
+    if (parseResult.errors.length > 0) {
+      console.log(`[Excel Upload] Parsing errors:`, parseResult.errors);
+    }
+
     if (parseResult.errors.length > 0 && parseResult.students.length === 0) {
       return res.status(400).json({
         message: "Failed to parse Excel file",
@@ -91,14 +96,19 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
         const excelRowNumber = excelStudent.excelRowNumber;
         const extractedImage = parseResult.images.get(excelRowNumber);
         
+        console.log(`[Excel Upload] Student ${studentData.indexNumber} (row ${excelRowNumber}): ${extractedImage ? 'Image found' : 'No image'}`);
+        
         if (extractedImage) {
           try {
+            console.log(`[Excel Upload] Uploading image for ${studentData.indexNumber}, size: ${extractedImage.buffer.length} bytes`);
             const imageUrl = await uploadImageToStorage(
               extractedImage.buffer,
               extractedImage.extension,
               student.id,
               student.indexNumber
             );
+            
+            console.log(`[Excel Upload] Image uploaded successfully for ${studentData.indexNumber}: ${imageUrl}`);
             
             // Update student with profile picture URL
             await storage.updateStudent(student.id, {
@@ -108,10 +118,19 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
             results.imagesUploaded++;
           } catch (imageError) {
             results.imagesFailed++;
+            const errorMsg = imageError instanceof Error ? imageError.message : "Unknown error";
             results.errors.push(
-              `Row ${excelRowNumber}: Failed to upload image for ${studentData.indexNumber} - ${imageError instanceof Error ? imageError.message : "Unknown error"}`
+              `Row ${excelRowNumber}: Failed to upload image for ${studentData.indexNumber} - ${errorMsg}`
             );
+            console.error(`[Excel Upload] Image upload failed for ${studentData.indexNumber}:`, imageError);
             // Continue even if image upload fails - student is still created
+          }
+        } else {
+          console.log(`[Excel Upload] No image found for row ${excelRowNumber} (student ${studentData.indexNumber})`);
+          // Log available image row numbers for debugging
+          if (parseResult.images.size > 0) {
+            const availableRows = Array.from(parseResult.images.keys()).join(', ');
+            console.log(`[Excel Upload] Available image rows: ${availableRows}`);
           }
         }
 
@@ -142,10 +161,17 @@ export async function uploadExcelFromStorageRoute(req: Request, res: Response) {
         errors: results.errors.length,
         imagesUploaded: results.imagesUploaded,
         imagesFailed: results.imagesFailed,
+        imagesFound: parseResult.images.size,
       },
       created: results.created,
       skipped: results.skipped,
       errors: results.errors,
+      imageExtractionInfo: {
+        totalImagesFound: parseResult.images.size,
+        imagesUploaded: results.imagesUploaded,
+        imagesFailed: results.imagesFailed,
+        imageExtractionErrors: parseResult.errors.filter(e => e.toLowerCase().includes('image')),
+      },
     });
   } catch (error) {
     return res.status(500).json({
