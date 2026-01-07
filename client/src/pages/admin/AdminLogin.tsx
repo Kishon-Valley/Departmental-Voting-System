@@ -64,6 +64,9 @@ export default function AdminLogin() {
                 required
                 disabled={isLoading}
                 className="h-11"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck="false"
               />
             </div>
 
@@ -78,6 +81,9 @@ export default function AdminLogin() {
                 required
                 disabled={isLoading}
                 className="h-11"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck="false"
               />
             </div>
 
