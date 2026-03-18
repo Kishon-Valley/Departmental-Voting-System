@@ -152,7 +152,7 @@ export async function submitVotesRoute(req: Request, res: Response) {
         throw new Error("Invalid user: index number is required for voting");
       }
       await storage.updateStudentHasVoted(user.indexNumber, true);
-    } catch (error) {
+    } catch (error: any) {
       // Rollback: Delete any votes that were created before the error
       // Note: This is a best-effort rollback. In a production system with transactions,
       // this would be handled automatically.
@@ -163,10 +163,12 @@ export async function submitVotesRoute(req: Request, res: Response) {
         // In production, consider adding a deleteVote method or using database transactions.
       }
       
+      // Extract error message from various error types (Supabase, standard Error, etc.)
+      const errorMessage = error?.message || error?.errorDescription || error?.details || (typeof error === 'string' ? error : "Unknown error");
       console.error(`Error creating vote:`, error);
       return res.status(500).json({
         message: "Failed to submit votes",
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMessage,
       });
     }
 
@@ -174,11 +176,12 @@ export async function submitVotesRoute(req: Request, res: Response) {
       message: "Votes submitted successfully",
       votes: submittedVotes,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error submitting votes:", error);
+    const errorMessage = error?.message || error?.errorDescription || error?.details || (typeof error === 'string' ? error : "Unknown error");
     return res.status(500).json({
       message: "Failed to submit votes",
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
     });
   }
 }
