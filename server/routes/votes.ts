@@ -42,7 +42,7 @@ export async function submitVotesRoute(req: Request, res: Response) {
     }
 
     const { votes } = validation.data;
-    const studentId = user.id;
+    const studentId = user.indexNumber; // Use index number (natural key) not UUID
 
     // Check if student has already voted
     if (user.hasVoted === true) {
@@ -197,13 +197,15 @@ export async function getMyVotesRoute(req: Request, res: Response) {
   }
 
   try {
-    const votes = await storage.getVotesByStudent(user.id);
+    const studentId = user.indexNumber; // Use index number (natural key) not UUID
+    const votes = await storage.getVotesByStudent(studentId);
     return res.json({ votes });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching votes:", error);
+    const errorMessage = error?.message || error?.errorDescription || error?.details || (typeof error === 'string' ? error : "Unknown error");
     return res.status(500).json({
       message: "Failed to fetch votes",
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
     });
   }
 }
