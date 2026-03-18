@@ -42,11 +42,11 @@ export async function submitVotesRoute(req: Request, res: Response) {
     }
 
     const { votes } = validation.data;
-    const studentId = user.id; // Use UUID for database operations
-    const indexNumber = user.indexNumber; // Use index number for student lookups
+    const studentId = user.id; // Use UUID from user session, not index number
+    const indexNumber = user.indexNumber;
 
     // Verify we have the required index number
-    if (!indexNumber) {
+    if (!studentId) {
       console.error("Missing indexNumber on user:", user);
       return res.status(400).json({
         message: "Invalid user session: index number is missing. Please log out and log back in.",
@@ -112,7 +112,7 @@ export async function submitVotesRoute(req: Request, res: Response) {
       }
 
       // Check if student has already voted for this position
-      const hasVoted = await storage.hasStudentVotedForPosition(indexNumber, positionId);
+      const hasVoted = await storage.hasStudentVotedForPosition(studentId, positionId);
       if (hasVoted) {
         return res.status(403).json({
           message: `You have already voted for position: ${positionId}`,
@@ -142,7 +142,7 @@ export async function submitVotesRoute(req: Request, res: Response) {
     try {
       for (const [positionId, candidateId] of Object.entries(votes)) {
         // Double-check that student hasn't voted for this position (race condition protection)
-        const hasVoted = await storage.hasStudentVotedForPosition(indexNumber, positionId);
+        const hasVoted = await storage.hasStudentVotedForPosition(studentId, positionId);
         if (hasVoted) {
           throw new Error(`You have already voted for position: ${positionId}`);
         }
@@ -206,7 +206,7 @@ export async function getMyVotesRoute(req: Request, res: Response) {
   }
 
   try {
-    const studentId = user.id; // Use UUID for database operations
+    const studentId = user.indexNumber; // Use index number (natural key) not UUID
     const votes = await storage.getVotesByStudent(studentId);
     return res.json({ votes });
   } catch (error: any) {
