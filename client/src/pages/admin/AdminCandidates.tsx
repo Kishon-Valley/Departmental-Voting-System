@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getQueryFn, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,6 +63,9 @@ export default function AdminCandidates() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const createPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const editPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const [formData, setFormData] = useState({
     positionId: "",
     name: "",
@@ -70,6 +73,55 @@ export default function AdminCandidates() {
     manifesto: "",
     bio: "",
   });
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(file);
+    });
+
+  const uploadCandidatePhoto = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("File too large. Please select an image smaller than 5MB.");
+    }
+    if (!["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type)) {
+      throw new Error("Invalid file type. Only JPEG, PNG, and WebP images are allowed.");
+    }
+    const dataUrl = await fileToDataUrl(file);
+    const res = await apiRequest("POST", "/api/admin/upload-candidate-photo-base64", {
+      file: dataUrl,
+      filename: file.name,
+      mimeType: file.type,
+    });
+    const json = await res.json();
+    if (!json?.url) {
+      throw new Error("Upload succeeded but no URL was returned.");
+    }
+    return String(json.url);
+  };
+
+  const handlePhotoPicked = async (file: File | null) => {
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    try {
+      const url = await uploadCandidatePhoto(file);
+      setFormData((prev) => ({ ...prev, photoUrl: url }));
+      toast({
+        title: "Photo Uploaded",
+        description: "Candidate photo has been uploaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to upload candidate photo",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   // Fetch positions
   const { data: positionsData } = useQuery<{ positions: Position[] }>({
@@ -408,15 +460,61 @@ export default function AdminCandidates() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="create-photo">Photo URL</Label>
-                  <Input
-                    id="create-photo"
-                    value={formData.photoUrl}
-                    onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
-                    placeholder="https://example.com/photo.jpg"
-                    type="url"
-                  />
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={formData.photoUrl || undefined} alt={formData.name || "Candidate"} />
+                      <AvatarFallback>
+                        {formData.name
+                          ? formData.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)
+                          : "C"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <Input
+                        id="create-photo"
+                        value={formData.photoUrl}
+                        onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
+                        placeholder="https://example.com/photo.jpg"
+                        type="url"
+                      />
+                    </div>
+                    <input
+                      ref={createPhotoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0] || null;
+                        e.target.value = "";
+                        await handlePhotoPicked(file);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => createPhotoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                    >
+                      {isUploadingPhoto ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Uploading
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="h-4 w-4 mr-2" />
+                          Upload
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Enter a valid image URL for the candidate's photo
+                    Upload JPEG/PNG/WebP (max 5MB) or paste a public image URL.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -498,13 +596,59 @@ export default function AdminCandidates() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-photo">Photo URL</Label>
-                  <Input
-                    id="edit-photo"
-                    value={formData.photoUrl}
-                    onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
-                    placeholder="https://example.com/photo.jpg"
-                    type="url"
-                  />
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={formData.photoUrl || undefined} alt={formData.name || "Candidate"} />
+                      <AvatarFallback>
+                        {formData.name
+                          ? formData.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)
+                          : "C"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <Input
+                        id="edit-photo"
+                        value={formData.photoUrl}
+                        onChange={(e) => setFormData({ ...formData, photoUrl: e.target.value })}
+                        placeholder="https://example.com/photo.jpg"
+                        type="url"
+                      />
+                    </div>
+                    <input
+                      ref={editPhotoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0] || null;
+                        e.target.value = "";
+                        await handlePhotoPicked(file);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => editPhotoInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                    >
+                      {isUploadingPhoto ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Uploading
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="h-4 w-4 mr-2" />
+                          Upload
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-bio">Bio</Label>

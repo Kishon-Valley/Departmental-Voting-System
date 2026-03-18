@@ -2,7 +2,7 @@ import "../env.js";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "./routes/auth.js";
-import { uploadAvatarRoute, uploadMiddleware } from "./routes/upload.js";
+import { uploadAvatarRoute, uploadMiddleware, uploadCandidatePhotoBase64Route } from "./routes/upload.js";
 import { getCandidatesRoute, getCandidateByIdRoute, getCandidatesByPositionRoute } from "./routes/candidates.js";
 import { getPositionsRoute, getPositionByIdRoute } from "./routes/positions.js";
 import { submitVotesRoute, getMyVotesRoute } from "./routes/votes.js";
@@ -66,6 +66,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(`${apiPrefix}/admin/students`, jwtAuth, requireAdmin, createStudentRoute);
   // Excel upload via Supabase Storage (preferred path)
   app.post(`${apiPrefix}/admin/students/upload-excel-from-storage`, jwtAuth, requireAdmin, uploadExcelFromStorageRoute);
+  // Candidate photo upload (base64; works on serverless too)
+  app.post(`${apiPrefix}/admin/upload-candidate-photo-base64`, jwtAuth, requireAdmin, uploadCandidatePhotoBase64Route);
 
   const httpServer = createServer(app);
 

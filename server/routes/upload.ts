@@ -230,3 +230,98 @@ export async function uploadAvatarBase64Route(req: Request, res: Response) {
   }
 }
 
+const IMAGE_ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;
+const IMAGE_ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "webp"] as const;
+
+function sanitizeFilename(value: string) {
+  return value.replace(/[^a-zA-Z0-9.-]/g, "_");
+}
+
+function inferFileExt(filename: string | undefined, mimeType: string | undefined) {
+  const fromName = filename ? sanitizeFilename(filename).split(".").pop()?.toLowerCase() : undefined;
+  if (fromName && IMAGE_ALLOWED_EXTENSIONS.includes(fromName as any)) return fromName;
+  const fromMime = mimeType?.split("/")[1]?.toLowerCase();
+  if (fromMime && IMAGE_ALLOWED_EXTENSIONS.includes(fromMime as any)) return fromMime;
+  return "jpg";
+}
+
+function decodeBase64ToBuffer(file: unknown) {
+  if (!file || typeof file !== "string") return null;
+  if (file.startsWith("data:")) {
+    const base64Data = file.split(",")[1];
+    if (!base64Data) return null;
+    return Buffer.from(base64Data, "base64");
+  }
+  return Buffer.from(file, "base64");
+}
+
+/**
+ * Upload candidate photo endpoint (base64 version for Vercel compatibility)
+ * POST /api/admin/upload-candidate-photo-base64
+ * Requires JWT authentication + admin role
+ */
+export async function uploadCandidatePhotoBase64Route(req: Request, res: Response) {
+  const user = (req as any).user;
+  if (!user) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  if (user.type !== "admin") {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+
+  try {
+    const { file, filename, mimeType } = req.body || {};
+
+    const contentType = (mimeType || "image/jpeg") as string;
+    if (!IMAGE_ALLOWED_MIME_TYPES.includes(contentType as any)) {
+      return res.status(400).json({
+        message: "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
+      });
+    }
+
+    const fileBuffer = decodeBase64ToBuffer(file);
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ message: "No file data provided" });
+    }
+
+    if (fileBuffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({
+        message: "File too large. Please select an image smaller than 5MB.",
+      });
+    }
+
+    const fileExt = inferFileExt(filename, contentType);
+    const fileName = `candidate-${Date.now()}.${fileExt}`;
+    const filePath = `candidates/${fileName}`;
+
+    const storageClient = getStorageClient();
+    const { error: uploadError } = await storageClient.storage
+      .from("student-avatars")
+      .upload(filePath, fileBuffer, {
+        contentType,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      return res.status(500).json({
+        message: "Failed to upload file",
+        error: uploadError.message,
+      });
+    }
+
+    const { data: urlData } = supabase.storage.from("student-avatars").getPublicUrl(filePath);
+
+    return res.json({
+      message: "File uploaded successfully",
+      url: urlData.publicUrl,
+    });
+  } catch (error) {
+    console.error("Upload error:", error);
+    return res.status(500).json({
+      message: "Failed to upload file",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+

@@ -4,7 +4,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express from "express";
 import passport from "../server/auth/passport.js";
 import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
-import { uploadAvatarRoute, uploadAvatarBase64Route } from "../server/routes/upload.js";
+import { uploadAvatarRoute, uploadAvatarBase64Route, uploadCandidatePhotoBase64Route } from "../server/routes/upload.js";
 import { getCandidatesRoute, getCandidateByIdRoute, getCandidatesByPositionRoute } from "../server/routes/candidates.js";
 import { getPositionsRoute, getPositionByIdRoute } from "../server/routes/positions.js";
 import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
@@ -142,6 +142,9 @@ async function getApp(): Promise<express.Application> {
   // Excel upload via Supabase Storage (preferred path, bypasses Vercel limits)
   app.post("/admin/students/upload-excel-from-storage", jwtAuth, requireAdmin, uploadExcelFromStorageRoute);
   app.post("/api/admin/students/upload-excel-from-storage", jwtAuth, requireAdmin, uploadExcelFromStorageRoute);
+  // Candidate photo upload (base64)
+  app.post("/admin/upload-candidate-photo-base64", jwtAuth, requireAdmin, uploadCandidatePhotoBase64Route);
+  app.post("/api/admin/upload-candidate-photo-base64", jwtAuth, requireAdmin, uploadCandidatePhotoBase64Route);
 
   // Error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
