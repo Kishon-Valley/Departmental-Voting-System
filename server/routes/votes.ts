@@ -44,6 +44,14 @@ export async function submitVotesRoute(req: Request, res: Response) {
     const { votes } = validation.data;
     const studentId = user.indexNumber; // Use index number (natural key) not UUID
 
+    // Verify we have the required index number
+    if (!studentId) {
+      console.error("Missing indexNumber on user:", user);
+      return res.status(400).json({
+        message: "Invalid user session: index number is missing. Please log out and log back in.",
+      });
+    }
+
     // Check if student has already voted
     if (user.hasVoted === true) {
       return res.status(403).json({
