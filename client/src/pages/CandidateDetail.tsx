@@ -4,49 +4,83 @@ import Footer from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft } from "lucide-react";
-import candidate1 from "@assets/images/Male_candidate_headshot_1_42ad3b40.png";
+import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
+import type { Candidate, Position } from "@shared/schema.js";
 
 export default function CandidateDetail() {
   const [, params] = useRoute("/candidate/:id");
-  
-  const candidate = {
-    id: params?.id || "1",
-    name: "Emmanuel Asante",
-    position: "President",
-    photoUrl: candidate1,
-    bio: "A dedicated third-year student pursuing a degree in Laboratory Technology with a passion for scientific excellence and student leadership. I have served as class representative for two consecutive years and have been actively involved in various departmental initiatives.",
-    manifesto: `
-My vision for our Laboratory Technology department is built on three core pillars:
+  const candidateId = params?.id;
 
-**1. Laboratory Excellence & Innovation**
-- Advocate for state-of-the-art laboratory equipment and modern diagnostic tools
-- Establish partnerships with leading hospitals and diagnostic centers
-- Promote research opportunities in medical laboratory science
-- Create a departmental innovation fund for student research projects
+  const { data: candidateData, isLoading: candidateLoading, error: candidateError } = useQuery<{ candidate: Candidate }>({
+    queryKey: [`/api/candidates/${candidateId}`],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!candidateId,
+  });
 
-**2. Professional Development**
-- Organize clinical training workshops and certification programs
-- Strengthen industry connections for internship and job placements
-- Invite guest speakers from renowned medical laboratories
-- Establish mentorship programs with practicing laboratory professionals
+  const candidate = candidateData?.candidate;
 
-**3. Student Welfare & Safety**
-- Improve laboratory safety protocols and emergency procedures
-- Enhance communication between students and faculty
-- Create study groups for challenging courses like Clinical Chemistry and Microbiology
-- Advocate for better student facilities and resources
+  const { data: positionsData } = useQuery<{ positions: Position[] }>({
+    queryKey: ["/api/positions"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
 
-Together, we can elevate our Laboratory Technology department to become a center of excellence in medical laboratory science. Your voice matters in shaping our professional future.
-    `,
-    experience: [
-      "Class Representative (2023-2024, 2024-2025)",
-      "Member, Laboratory Safety Committee",
-      "Volunteer, Department Orientation Program",
-      "Organizer, Medical Laboratory Science Symposium 2024",
-      "Intern, Cape Coast Teaching Hospital Laboratory",
-    ],
-  };
+  const positionTitle = candidate?.positionId
+    ? positionsData?.positions?.find((p) => p.id === candidate.positionId)?.title || "Unknown Position"
+    : "Unknown Position";
+
+  const isLoading = candidateLoading;
+  const error = candidateError;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 py-12">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+              <p className="text-muted-foreground">Loading candidate...</p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error || !candidate) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 py-12">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <Link href="/candidates">
+              <Button variant="ghost" className="mb-6">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Candidates
+              </Button>
+            </Link>
+            <Card className="border-destructive">
+              <CardHeader>
+                <div className="inline-flex items-center gap-2 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                  <CardTitle>Candidate Not Found</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  {error instanceof Error ? error.message : "Failed to load candidate details."}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -65,7 +99,7 @@ Together, we can elevate our Laboratory Technology department to become a center
               <div className="flex flex-col md:flex-row gap-8">
                 <div className="flex-shrink-0">
                   <img
-                    src={candidate.photoUrl}
+                    src={candidate.photoUrl || "/placeholder-avatar.png"}
                     alt={candidate.name}
                     className="w-48 h-48 rounded-lg object-cover"
                     data-testid="img-candidate"
@@ -76,10 +110,10 @@ Together, we can elevate our Laboratory Technology department to become a center
                     {candidate.name}
                   </h1>
                   <Badge className="mb-4" data-testid="badge-position">
-                    Running for {candidate.position}
+                    Running for {positionTitle}
                   </Badge>
                   <p className="text-muted-foreground leading-relaxed" data-testid="text-bio">
-                    {candidate.bio}
+                    {candidate.bio || "No bio available."}
                   </p>
                 </div>
               </div>
@@ -92,48 +126,34 @@ Together, we can elevate our Laboratory Technology department to become a center
             </CardHeader>
             <CardContent>
               <div className="prose prose-sm max-w-none">
-                {candidate.manifesto.split('\n').map((paragraph, index) => {
-                  if (paragraph.trim() === '') return null;
-                  if (paragraph.startsWith('**')) {
-                    const text = paragraph.replace(/\*\*/g, '');
+                {candidate.manifesto ? (
+                  candidate.manifesto.split('\n').map((paragraph, index) => {
+                    if (paragraph.trim() === '') return null;
+                    if (paragraph.startsWith('**')) {
+                      const text = paragraph.replace(/\*\*/g, '');
+                      return (
+                        <h3 key={index} className="font-semibold text-lg mt-6 mb-3">
+                          {text}
+                        </h3>
+                      );
+                    }
+                    if (paragraph.startsWith('-')) {
+                      return (
+                        <li key={index} className="ml-6 mb-2 text-muted-foreground leading-relaxed">
+                          {paragraph.substring(1).trim()}
+                        </li>
+                      );
+                    }
                     return (
-                      <h3 key={index} className="font-semibold text-lg mt-6 mb-3">
-                        {text}
-                      </h3>
+                      <p key={index} className="mb-4 text-muted-foreground leading-relaxed">
+                        {paragraph}
+                      </p>
                     );
-                  }
-                  if (paragraph.startsWith('-')) {
-                    return (
-                      <li key={index} className="ml-6 mb-2 text-muted-foreground leading-relaxed">
-                        {paragraph.substring(1).trim()}
-                      </li>
-                    );
-                  }
-                  return (
-                    <p key={index} className="mb-4 text-muted-foreground leading-relaxed">
-                      {paragraph}
-                    </p>
-                  );
-                })}
+                  })
+                ) : (
+                  <p className="text-muted-foreground">No manifesto available.</p>
+                )}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-serif">Experience & Involvement</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {candidate.experience.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span className="text-muted-foreground" data-testid={`text-experience-${index}`}>
-                      {item}
-                    </span>
-                  </li>
-                ))}
-              </ul>
             </CardContent>
           </Card>
 
