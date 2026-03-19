@@ -206,12 +206,10 @@ export default function AdminElections() {
               <h1 className="text-3xl font-bold font-serif mb-2">Election Management</h1>
               <p className="text-muted-foreground">Manage election settings and status</p>
             </div>
-            {!electionData && (
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Election
-              </Button>
-            )}
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Election
+            </Button>
           </div>
 
           {isLoading ? (
