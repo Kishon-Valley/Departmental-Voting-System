@@ -9,10 +9,10 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuth();
 
+  // Public navbar no longer shows a /results tab; results are handled via admin-only views
   const navLinks = [
     { path: "/", label: "Home" },
     { path: "/candidates", label: "Candidates" },
-    { path: "/results", label: "Results" },
     { path: "/contact", label: "Contact" },
   ];
 

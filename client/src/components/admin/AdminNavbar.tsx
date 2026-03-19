@@ -1,11 +1,28 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Shield, LogOut, LayoutDashboard } from "lucide-react";
+import { Shield, LogOut } from "lucide-react";
 import { useAdmin } from "@/contexts/AdminContext";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
 
 export default function AdminNavbar() {
   const [location] = useLocation();
   const { admin, logout } = useAdmin();
+
+  // Determine if results should be visible in the admin nav.
+  // We only show the Results tab after the election has been published (status === "closed")
+  // and for the designated admin account (admin2).
+  const { data: electionData } = useQuery<{
+    status: "upcoming" | "active" | "closed";
+    startDate?: string | null;
+    endDate?: string | null;
+  }>({
+    queryKey: ["/api/election/status"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+
+  const canSeeResults =
+    !!admin && admin.username === "admin2" && electionData?.status === "closed";
 
   const navLinks = [
     { path: "/admin/dashboard", label: "Dashboard" },
@@ -14,7 +31,7 @@ export default function AdminNavbar() {
     { path: "/admin/candidates", label: "Candidates" },
     { path: "/admin/students", label: "Students" },
     { path: "/admin/votes", label: "Votes" },
-    { path: "/admin/results", label: "Results" },
+    ...(canSeeResults ? [{ path: "/admin/results", label: "Results" }] : []),
   ];
 
   const isActive = (path: string) => location === path;
