@@ -25,13 +25,15 @@ import AdminResults from "@/pages/admin/AdminResults";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/candidates" component={Candidates} />
       <Route path="/candidate/:id" component={CandidateDetail} />
       <Route path="/vote" component={Vote} />
-      <Route path="/results" component={Results} />
+      {isAuthenticated && <Route path="/results" component={Results} />}
       <Route path="/contact" component={Contact} />
       <Route path="/login" component={Login} />
       <Route path="/profile" component={Profile} />
