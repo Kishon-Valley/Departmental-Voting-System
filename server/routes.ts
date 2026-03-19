@@ -41,8 +41,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${apiPrefix}/votes/my-votes`, jwtAuth, getMyVotesRoute);
 
   // Results routes
-  app.get(`${apiPrefix}/results`, getResultsRoute);
-  app.get(`${apiPrefix}/results/position/:positionId`, getResultsByPositionRoute);
+  app.get(`${apiPrefix}/results`, jwtAuth, getResultsRoute);
+  app.get(`${apiPrefix}/results/position/:positionId`, jwtAuth, getResultsByPositionRoute);
 
   // Election routes
   app.get(`${apiPrefix}/election/status`, getElectionStatusRoute);
