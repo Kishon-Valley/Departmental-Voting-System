@@ -75,7 +75,9 @@ export default function Vote() {
   const isLoading = positionsLoading || candidatesLoading;
   const error = positionsError || candidatesError;
 
-  // Check if user has already voted
+  // Check if user has already voted in the current election.
+  // The backend now resets voting state when a new election is created,
+  // so we can rely on the hasVoted flag and existing votes.
   const hasVoted = user?.hasVoted || (myVotesData?.votes && myVotesData.votes.length > 0);
 
   const handleVoteSubmit = async (votes: Record<string, string>) => {
@@ -105,11 +107,6 @@ export default function Vote() {
                     You have already submitted your vote for this election. Each student can only vote once.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Link href="/results">
-                      <Button variant="outline" data-testid="button-view-results">
-                        View Results
-                      </Button>
-                    </Link>
                     <Link href="/">
                       <Button data-testid="button-back-home">
                         Back to Home
@@ -210,11 +207,6 @@ export default function Vote() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Link href="/results">
-                      <Button variant="outline" data-testid="button-view-results">
-                        View Results
-                      </Button>
-                    </Link>
                     <Link href="/">
                       <Button data-testid="button-back-home">
                         Back to Home
