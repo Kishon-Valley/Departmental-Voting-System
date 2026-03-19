@@ -4,9 +4,19 @@ import { storage } from "../storage.js";
 /**
  * Get election results
  * GET /api/results
+ *
+ * NOTE: This endpoint is restricted to a specific admin account ("admin2")
+ * to ensure that only that admin can access full election results.
  */
 export async function getResultsRoute(req: Request, res: Response) {
   try {
+    const user = (req as any).user;
+
+    // Only allow the designated admin (admin2) to access results
+    if (!user || user.type !== "admin" || user.username !== "admin2") {
+      return res.status(403).json({ message: "Results access restricted to admin2" });
+    }
+
     // Get all positions
     const positions = await storage.getPositions();
     

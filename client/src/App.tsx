@@ -33,7 +33,7 @@ function Router() {
       <Route path="/candidates" component={Candidates} />
       <Route path="/candidate/:id" component={CandidateDetail} />
       <Route path="/vote" component={Vote} />
-      {isAuthenticated && <Route path="/results" component={Results} />}
+      {/* Public results page is no longer exposed; results are managed via admin-only views */}
       <Route path="/contact" component={Contact} />
       <Route path="/login" component={Login} />
       <Route path="/profile" component={Profile} />

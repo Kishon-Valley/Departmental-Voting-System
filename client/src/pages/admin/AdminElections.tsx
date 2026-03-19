@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Plus, Loader2, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { Calendar, Plus, Loader2, AlertCircle, CheckCircle2, Clock, Megaphone } from "lucide-react";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import AdminNavbar from "@/components/admin/AdminNavbar";
 import {
@@ -262,6 +262,30 @@ export default function AdminElections() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {electionData.status === "active" && (
+                      <div>
+                        <Button
+                          variant="default"
+                          className="w-full"
+                          disabled={updateStatusMutation.isPending}
+                          onClick={() =>
+                            handleStatusChange("closed")
+                          }
+                        >
+                          {updateStatusMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <Megaphone className="h-4 w-4 mr-2" />
+                              Publish Results (Close Election)
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
                     <div>
                       <Button
                         variant="outline"

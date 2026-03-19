@@ -40,9 +40,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(`${apiPrefix}/votes`, jwtAuth, submitVotesRoute);
   app.get(`${apiPrefix}/votes/my-votes`, jwtAuth, getMyVotesRoute);
 
-  // Results routes
-  app.get(`${apiPrefix}/results`, jwtAuth, getResultsRoute);
-  app.get(`${apiPrefix}/results/position/:positionId`, jwtAuth, getResultsByPositionRoute);
+  // Results routes (restricted to admins; getResultsRoute further restricts to admin2)
+  app.get(`${apiPrefix}/results`, jwtAuth, requireAdmin, getResultsRoute);
+  app.get(`${apiPrefix}/results/position/:positionId`, jwtAuth, requireAdmin, getResultsByPositionRoute);
 
   // Election routes
   app.get(`${apiPrefix}/election/status`, getElectionStatusRoute);
