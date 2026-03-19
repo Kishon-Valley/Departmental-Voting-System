@@ -230,13 +230,7 @@ export async function createElectionRoute(req: Request, res: Response) {
       });
     }
 
-    // Create the new election
     const election = await storage.createElection(validation.data);
-
-    // When a new election is created, reset all student voting state so that
-    // every student can vote again in the new election cycle.
-    await storage.resetAllStudentVotingState();
-
     return res.json({ election });
   } catch (error) {
     console.error("Error creating election:", error);

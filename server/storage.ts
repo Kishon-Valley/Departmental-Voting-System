@@ -124,7 +124,6 @@ export interface IStorage {
   
   // Student operations (admin)
   getAllStudents(): Promise<Student[]>;
-  resetAllStudentVotingState(): Promise<void>;
 
   // Election operations
   getElection(): Promise<Election | undefined>;
@@ -258,30 +257,6 @@ export class DatabaseStorage implements IStorage {
       .eq("index_number", indexNumber);
     
     if (error) throw error;
-  }
-
-  /**
-   * Reset voting state for a new election cycle.
-   * - Clears the has_voted flag for all students
-   * - Deletes all existing votes
-   */
-  async resetAllStudentVotingState(): Promise<void> {
-    // Reset has_voted for all students
-    const { error: studentError } = await supabase
-      .from("students")
-      .update({
-        has_voted: false,
-        updated_at: new Date().toISOString(),
-      });
-
-    if (studentError) throw studentError;
-
-    // Delete all votes so each election starts with a clean slate
-    const { error: votesError } = await supabase
-      .from("votes")
-      .delete();
-
-    if (votesError) throw votesError;
   }
 
   async getAllStudents(): Promise<Student[]> {
