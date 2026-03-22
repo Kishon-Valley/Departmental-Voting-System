@@ -17,6 +17,11 @@ export async function getResultsRoute(req: Request, res: Response) {
       return res.status(403).json({ message: "Results access restricted to admin2" });
     }
 
+    const focusElection = await storage.getElectionForAggregatingResults();
+    if (!focusElection) {
+      return res.json({ results: [] });
+    }
+
     // Get all positions
     const positions = await storage.getPositions();
     
@@ -26,8 +31,8 @@ export async function getResultsRoute(req: Request, res: Response) {
     // Build results for each position
     const results = await Promise.all(
       positions.map(async (position) => {
-        // Get vote counts for this position
-        const voteCounts = await storage.getVoteCountsByPosition(position.id);
+        // Get vote counts for this position (scoped to the election we are reporting)
+        const voteCounts = await storage.getVoteCountsByPosition(position.id, focusElection.id);
         
         // Get candidates for this position
         const positionCandidates = candidates.filter(
@@ -82,6 +87,11 @@ export async function getResultsRoute(req: Request, res: Response) {
 export async function getResultsByPositionRoute(req: Request, res: Response) {
   try {
     const { positionId } = req.params;
+
+    const focusElection = await storage.getElectionForAggregatingResults();
+    if (!focusElection) {
+      return res.status(404).json({ message: "No election found for results" });
+    }
     
     // Verify position exists
     const position = await storage.getPosition(positionId);
@@ -90,7 +100,7 @@ export async function getResultsByPositionRoute(req: Request, res: Response) {
     }
     
     // Get vote counts for this position
-    const voteCounts = await storage.getVoteCountsByPosition(positionId);
+    const voteCounts = await storage.getVoteCountsByPosition(positionId, focusElection.id);
     
     // Get candidates for this position
     const candidates = await storage.getCandidatesByPosition(positionId);

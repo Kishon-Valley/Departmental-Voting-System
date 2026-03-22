@@ -70,6 +70,7 @@ function mapVoteRow(row: any): Vote {
     studentId: row.student_id,
     positionId: row.position_id,
     candidateId: row.candidate_id,
+    electionId: row.election_id ?? "",
     createdAt: row.created_at,
   };
 }
@@ -116,11 +117,13 @@ export interface IStorage {
 
   // Vote operations
   createVote(vote: InsertVote): Promise<Vote>;
-  getVotesByStudent(studentId: string): Promise<Vote[]>;
+  getVotesByStudent(studentId: string, electionId?: string): Promise<Vote[]>;
   getVotesByPosition(positionId: string): Promise<Vote[]>;
   getAllVotes(): Promise<Vote[]>;
-  hasStudentVotedForPosition(studentId: string, positionId: string): Promise<boolean>;
-  getVoteCountsByPosition(positionId: string): Promise<Array<{ candidateId: string; count: number }>>;
+  hasStudentVotedForPosition(studentId: string, positionId: string, electionId: string): Promise<boolean>;
+  hasStudentCompletedBallotForElection(studentId: string, electionId: string): Promise<boolean>;
+  getCompletedBallotStudentIdsForElection(electionId: string): Promise<Set<string>>;
+  getVoteCountsByPosition(positionId: string, electionId: string): Promise<Array<{ candidateId: string; count: number }>>;
   
   // Student operations (admin)
   getAllStudents(): Promise<Student[]>;
@@ -128,6 +131,9 @@ export interface IStorage {
   // Election operations
   getElection(): Promise<Election | undefined>;
   getActiveElection(): Promise<Election | undefined>;
+  getMostRecentlyClosedElection(): Promise<Election | undefined>;
+  /** Active election tallies; if none, last closed (published); else latest row. */
+  getElectionForAggregatingResults(): Promise<Election | undefined>;
   createElection(election: InsertElection): Promise<Election>;
   updateElectionStatus(id: string, status: "upcoming" | "active" | "closed"): Promise<Election>;
   updateElectionDates(id: string, startDate: Date | string | null, endDate: Date | string | null): Promise<Election>;
@@ -442,6 +448,7 @@ export class DatabaseStorage implements IStorage {
         student_id: voteData.studentId,
         position_id: voteData.positionId,
         candidate_id: voteData.candidateId,
+        election_id: voteData.electionId,
       })
       .select()
       .single();
@@ -450,12 +457,16 @@ export class DatabaseStorage implements IStorage {
     return mapVoteRow(data);
   }
 
-  async getVotesByStudent(studentId: string): Promise<Vote[]> {
-    const { data, error } = await supabase
+  async getVotesByStudent(studentId: string, electionId?: string): Promise<Vote[]> {
+    let q = supabase
       .from("votes")
       .select("*")
       .eq("student_id", studentId)
       .order("created_at", { ascending: false });
+    if (electionId) {
+      q = q.eq("election_id", electionId);
+    }
+    const { data, error } = await q;
     
     if (error) throw error;
     return (data || []).map(mapVoteRow);
@@ -482,12 +493,13 @@ export class DatabaseStorage implements IStorage {
     return (data || []).map(mapVoteRow);
   }
 
-  async hasStudentVotedForPosition(studentId: string, positionId: string): Promise<boolean> {
+  async hasStudentVotedForPosition(studentId: string, positionId: string, electionId: string): Promise<boolean> {
     const { data, error } = await supabase
       .from("votes")
       .select("id")
       .eq("student_id", studentId)
       .eq("position_id", positionId)
+      .eq("election_id", electionId)
       .limit(1);
     
     if (error) {
@@ -496,11 +508,70 @@ export class DatabaseStorage implements IStorage {
     return (data && data.length > 0);
   }
 
-  async getVoteCountsByPosition(positionId: string): Promise<Array<{ candidateId: string; count: number }>> {
+  async hasStudentCompletedBallotForElection(studentId: string, electionId: string): Promise<boolean> {
+    const positions = await this.getPositions();
+    if (positions.length === 0) {
+      return false;
+    }
+    for (const p of positions) {
+      const voted = await this.hasStudentVotedForPosition(studentId, p.id, electionId);
+      if (!voted) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async getCompletedBallotStudentIdsForElection(electionId: string): Promise<Set<string>> {
+    const positions = await this.getPositions();
+    if (positions.length === 0) {
+      return new Set();
+    }
+    const required = new Set(positions.map((p) => p.id));
+
+    const { data, error } = await supabase
+      .from("votes")
+      .select("student_id, position_id")
+      .eq("election_id", electionId);
+
+    if (error) {
+      throw error;
+    }
+
+    const byStudent = new Map<string, Set<string>>();
+    for (const row of data || []) {
+      const sid = row.student_id as string;
+      if (!byStudent.has(sid)) {
+        byStudent.set(sid, new Set());
+      }
+      byStudent.get(sid)!.add(row.position_id as string);
+    }
+
+    const done = new Set<string>();
+    for (const [sid, posSet] of byStudent) {
+      if (posSet.size < required.size) {
+        continue;
+      }
+      let coversAll = true;
+      for (const pid of required) {
+        if (!posSet.has(pid)) {
+          coversAll = false;
+          break;
+        }
+      }
+      if (coversAll) {
+        done.add(sid);
+      }
+    }
+    return done;
+  }
+
+  async getVoteCountsByPosition(positionId: string, electionId: string): Promise<Array<{ candidateId: string; count: number }>> {
     const { data, error } = await supabase
       .from("votes")
       .select("candidate_id")
-      .eq("position_id", positionId);
+      .eq("position_id", positionId)
+      .eq("election_id", electionId);
     
     if (error) throw error;
     
@@ -542,6 +613,31 @@ export class DatabaseStorage implements IStorage {
     
     if (error || !data) return undefined;
     return mapElectionRow(data);
+  }
+
+  async getMostRecentlyClosedElection(): Promise<Election | undefined> {
+    const { data, error } = await supabase
+      .from("elections")
+      .select("*")
+      .eq("status", "closed")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return undefined;
+    return mapElectionRow(data);
+  }
+
+  async getElectionForAggregatingResults(): Promise<Election | undefined> {
+    const active = await this.getActiveElection();
+    if (active) {
+      return active;
+    }
+    const closed = await this.getMostRecentlyClosedElection();
+    if (closed) {
+      return closed;
+    }
+    return this.getElection();
   }
 
   async createElection(electionData: InsertElection): Promise<Election> {

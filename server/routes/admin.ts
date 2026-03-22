@@ -111,8 +111,15 @@ export function requireAdmin(req: Request, res: Response, next: any) {
 export async function getStudentsRoute(req: Request, res: Response) {
   try {
     const students = await storage.getAllStudents();
-    // Remove passwords from response
-    const studentsWithoutPasswords = students.map(({ password, ...student }) => student);
+    const activeElection = await storage.getActiveElection();
+    const completedIds = activeElection
+      ? await storage.getCompletedBallotStudentIdsForElection(activeElection.id)
+      : new Set<string>();
+
+    const studentsWithoutPasswords = students.map(({ password, ...student }) => ({
+      ...student,
+      hasVoted: completedIds.has(student.id),
+    }));
     return res.json({ students: studentsWithoutPasswords });
   } catch (error) {
     console.error("Error fetching students:", error);

@@ -30,6 +30,9 @@ export async function submitVotesRoute(req: Request, res: Response) {
   if (!user) {
     return res.status(401).json({ message: "Authentication required" });
   }
+  if (user.type === "admin") {
+    return res.status(403).json({ message: "Only students can submit votes" });
+  }
 
   try {
     // Validate request body
@@ -43,20 +46,11 @@ export async function submitVotesRoute(req: Request, res: Response) {
 
     const { votes } = validation.data;
     const studentId = user.id; // Use UUID from user session, not index number
-    const indexNumber = user.indexNumber;
 
-    // Verify we have the required index number
     if (!studentId) {
-      console.error("Missing indexNumber on user:", user);
+      console.error("Missing student id on user:", user);
       return res.status(400).json({
-        message: "Invalid user session: index number is missing. Please log out and log back in.",
-      });
-    }
-
-    // Check if student has already voted
-    if (user.hasVoted === true) {
-      return res.status(403).json({
-        message: "You have already voted. Each student can only vote once.",
+        message: "Invalid user session. Please log out and log back in.",
       });
     }
 
@@ -65,6 +59,16 @@ export async function submitVotesRoute(req: Request, res: Response) {
     if (!election) {
       return res.status(403).json({
         message: "No active election found. Voting is currently closed.",
+      });
+    }
+
+    const electionId = election.id;
+
+    // One ballot per student per election (not global has_voted on students row)
+    const alreadyCompleted = await storage.hasStudentCompletedBallotForElection(studentId, electionId);
+    if (alreadyCompleted) {
+      return res.status(403).json({
+        message: "You have already voted in this election. Each student can vote once per election.",
       });
     }
 
@@ -112,7 +116,7 @@ export async function submitVotesRoute(req: Request, res: Response) {
       }
 
       // Check if student has already voted for this position
-      const hasVoted = await storage.hasStudentVotedForPosition(studentId, positionId);
+      const hasVoted = await storage.hasStudentVotedForPosition(studentId, positionId, electionId);
       if (hasVoted) {
         return res.status(403).json({
           message: `You have already voted for position: ${positionId}`,
@@ -142,7 +146,7 @@ export async function submitVotesRoute(req: Request, res: Response) {
     try {
       for (const [positionId, candidateId] of Object.entries(votes)) {
         // Double-check that student hasn't voted for this position (race condition protection)
-        const hasVoted = await storage.hasStudentVotedForPosition(studentId, positionId);
+        const hasVoted = await storage.hasStudentVotedForPosition(studentId, positionId, electionId);
         if (hasVoted) {
           throw new Error(`You have already voted for position: ${positionId}`);
         }
@@ -151,16 +155,12 @@ export async function submitVotesRoute(req: Request, res: Response) {
           studentId,
           positionId,
           candidateId,
+          electionId,
         });
         submittedVotes.push(vote);
         createdVoteIds.push(vote.id);
       }
 
-      // Mark student as having voted only after all votes are successfully created
-      if (!indexNumber) {
-        throw new Error("Invalid user: index number is required for voting");
-      }
-      await storage.updateStudentHasVoted(indexNumber, true);
     } catch (error: any) {
       // Rollback: Delete any votes that were created before the error
       // Note: This is a best-effort rollback. In a production system with transactions,
@@ -206,8 +206,12 @@ export async function getMyVotesRoute(req: Request, res: Response) {
   }
 
   try {
-    const studentId = user.indexNumber; // Use index number (natural key) not UUID
-    const votes = await storage.getVotesByStudent(studentId);
+    const studentId = user.id;
+    const active = await storage.getActiveElection();
+    if (!active) {
+      return res.json({ votes: [] });
+    }
+    const votes = await storage.getVotesByStudent(studentId, active.id);
     return res.json({ votes });
   } catch (error: any) {
     console.error("Error fetching votes:", error);

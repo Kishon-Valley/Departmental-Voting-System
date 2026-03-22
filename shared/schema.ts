@@ -83,6 +83,7 @@ export type Vote = {
   studentId: string;
   positionId: string;
   candidateId: string;
+  electionId: string;
   createdAt: Date | string;
 };
 
@@ -114,6 +115,7 @@ export type InsertVote = {
   studentId: string;
   positionId: string;
   candidateId: string;
+  electionId: string;
 };
 
 export type InsertElection = {

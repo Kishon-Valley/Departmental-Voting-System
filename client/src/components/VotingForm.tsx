@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2 } from "lucide-react";
 
 interface Candidate {
@@ -53,6 +53,8 @@ export default function VotingForm({ positions, onSubmit }: VotingFormProps) {
         const data = await response.json();
         
         if (response.ok) {
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+          await queryClient.invalidateQueries({ queryKey: ["/api/votes/my-votes"] });
           toast({
             title: "Votes Submitted Successfully",
             description: "Your votes have been recorded securely.",

@@ -53,6 +53,11 @@ export function loginRoute(req: Request, res: Response, next: any) {
       type: "student",
     });
 
+    const activeElection = await storage.getActiveElection();
+    const hasVotedInActiveElection = activeElection
+      ? await storage.hasStudentCompletedBallotForElection(user.id, activeElection.id)
+      : false;
+
     // Set token in HTTP-only cookie
     const isProduction = process.env.NODE_ENV === "production";
     res.cookie("token", token, {
@@ -74,7 +79,7 @@ export function loginRoute(req: Request, res: Response, next: any) {
         email: user.email,
         year: user.year,
         profilePicture: user.profilePicture,
-        hasVoted: user.hasVoted,
+        hasVoted: hasVotedInActiveElection,
       },
     });
   })(req, res, next);
@@ -148,6 +153,11 @@ export async function updateProfileRoute(req: Request, res: Response) {
   try {
     const updatedStudent = await storage.updateStudent(user.id, validation.data);
 
+    const activeElection = await storage.getActiveElection();
+    const hasVotedInActiveElection = activeElection
+      ? await storage.hasStudentCompletedBallotForElection(updatedStudent.id, activeElection.id)
+      : false;
+
     return res.json({
       message: "Profile updated successfully",
       user: {
@@ -157,7 +167,7 @@ export async function updateProfileRoute(req: Request, res: Response) {
         email: updatedStudent.email,
         year: updatedStudent.year,
         profilePicture: updatedStudent.profilePicture,
-        hasVoted: updatedStudent.hasVoted,
+        hasVoted: hasVotedInActiveElection,
       },
     });
   } catch (error) {

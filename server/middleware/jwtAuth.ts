@@ -42,6 +42,15 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction) {
       }
       const { password: _, ...studentWithoutPassword } = student;
       user = studentWithoutPassword;
+      const activeElection = await storage.getActiveElection();
+      if (activeElection) {
+        user.hasVoted = await storage.hasStudentCompletedBallotForElection(
+          student.id,
+          activeElection.id,
+        );
+      } else {
+        user.hasVoted = false;
+      }
     } else if (payload.type === "admin") {
       const adminUser = await storage.getUser(payload.id);
       if (!adminUser) {
@@ -96,6 +105,15 @@ export async function optionalJwtAuth(req: Request, res: Response, next: NextFun
           if (student) {
             const { password: _, ...studentWithoutPassword } = student;
             user = studentWithoutPassword;
+            const activeElection = await storage.getActiveElection();
+            if (activeElection) {
+              user.hasVoted = await storage.hasStudentCompletedBallotForElection(
+                student.id,
+                activeElection.id,
+              );
+            } else {
+              user.hasVoted = false;
+            }
           }
         } else if (payload.type === "admin") {
           const adminUser = await storage.getUser(payload.id);
