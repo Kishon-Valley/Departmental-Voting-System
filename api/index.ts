@@ -98,11 +98,11 @@ async function getApp(): Promise<express.Application> {
   app.get("/votes/my-votes", jwtAuth, getMyVotesRoute);
   app.get("/api/votes/my-votes", jwtAuth, getMyVotesRoute);
 
-  // Results routes
-  app.get("/results", getResultsRoute);
-  app.get("/api/results", getResultsRoute);
-  app.get("/results/position/:positionId", getResultsByPositionRoute);
-  app.get("/api/results/position/:positionId", getResultsByPositionRoute);
+  // Results routes (admin-only; must match server/routes.ts)
+  app.get("/results", jwtAuth, requireAdmin, getResultsRoute);
+  app.get("/api/results", jwtAuth, requireAdmin, getResultsRoute);
+  app.get("/results/position/:positionId", jwtAuth, requireAdmin, getResultsByPositionRoute);
+  app.get("/api/results/position/:positionId", jwtAuth, requireAdmin, getResultsByPositionRoute);
 
   // Election routes
   app.get("/election/status", getElectionStatusRoute);

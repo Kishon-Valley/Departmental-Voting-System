@@ -5,6 +5,7 @@ import { Loader2, BarChart3 } from "lucide-react";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import AdminNavbar from "@/components/admin/AdminNavbar";
 import ResultsChart from "@/components/ResultsChart";
+import ElectionResultsOverview from "@/components/ElectionResultsOverview";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function AdminResults() {
@@ -100,6 +101,12 @@ export default function AdminResults() {
                   </CardDescription>
                 </CardHeader>
               </Card>
+              <ElectionResultsOverview
+                rows={resultsData.results.map((r) => ({
+                  positionTitle: r.positionTitle,
+                  totalVotes: r.totalVotes,
+                }))}
+              />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {resultsData.results.map((result, index) => (
                   <ResultsChart

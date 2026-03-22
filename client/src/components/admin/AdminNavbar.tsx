@@ -9,9 +9,7 @@ export default function AdminNavbar() {
   const [location] = useLocation();
   const { admin, logout } = useAdmin();
 
-  // Determine if results should be visible in the admin nav.
-  // We only show the Results tab after the election has been published (status === "closed")
-  // and for the designated admin account (admin2).
+  // Show Results once voting has started or finished (hide only while upcoming).
   const { data: electionData } = useQuery<{
     status: "upcoming" | "active" | "closed";
     startDate?: string | null;
@@ -22,7 +20,8 @@ export default function AdminNavbar() {
   });
 
   const canSeeResults =
-    !!admin && admin.username === "admin2" && electionData?.status === "closed";
+    !!admin &&
+    (electionData?.status === "active" || electionData?.status === "closed");
 
   const navLinks = [
     { path: "/admin/dashboard", label: "Dashboard" },
