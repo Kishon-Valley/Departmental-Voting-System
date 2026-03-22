@@ -122,6 +122,7 @@ export interface IStorage {
   getAllVotes(): Promise<Vote[]>;
   hasStudentVotedForPosition(studentId: string, positionId: string, electionId: string): Promise<boolean>;
   hasStudentCompletedBallotForElection(studentId: string, electionId: string): Promise<boolean>;
+  deleteVotesByIds(ids: string[]): Promise<void>;
   getCompletedBallotStudentIdsForElection(electionId: string): Promise<Set<string>>;
   getVoteCountsByPosition(positionId: string, electionId: string): Promise<Array<{ candidateId: string; count: number }>>;
   
@@ -455,6 +456,12 @@ export class DatabaseStorage implements IStorage {
     
     if (error) throw error;
     return mapVoteRow(data);
+  }
+
+  async deleteVotesByIds(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("votes").delete().in("id", ids);
+    if (error) throw error;
   }
 
   async getVotesByStudent(studentId: string, electionId?: string): Promise<Vote[]> {

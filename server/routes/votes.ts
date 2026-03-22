@@ -1,7 +1,26 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage.js";
-import { submitVotesSchema } from "../../shared/schema.js";
-import { z } from "zod";
+import { submitVotesSchema, type Vote } from "../../shared/schema.js";
+
+function isPgUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  if (e?.code === "23505") return true;
+  const msg = typeof e?.message === "string" ? e.message : "";
+  return msg.includes("duplicate key") || msg.includes("idx_votes_student_position_unique");
+}
+
+function existingBallotMatchesSubmission(
+  existing: Vote[],
+  submitted: Record<string, string>,
+  positionIds: string[],
+): boolean {
+  if (existing.length !== positionIds.length) return false;
+  const byPosition = new Map(existing.map((v) => [v.positionId, v.candidateId]));
+  for (const pid of positionIds) {
+    if (byPosition.get(pid) !== submitted[pid]) return false;
+  }
+  return true;
+}
 
 // Type augmentation for Express Request with user
 declare global {
@@ -162,18 +181,37 @@ export async function submitVotesRoute(req: Request, res: Response) {
       }
 
     } catch (error: any) {
-      // Rollback: Delete any votes that were created before the error
-      // Note: This is a best-effort rollback. In a production system with transactions,
-      // this would be handled automatically.
+      const unique = isPgUniqueViolation(error);
+
+      // Concurrent double-submit or legacy DB unique index: remove our partial rows, then re-check.
       if (createdVoteIds.length > 0) {
-        console.error(`Rolling back ${createdVoteIds.length} votes due to error:`, error);
-        // Note: We don't have a deleteVote method, but votes should be rare enough
-        // that manual cleanup might be needed. For now, we log the issue.
-        // In production, consider adding a deleteVote method or using database transactions.
+        try {
+          await storage.deleteVotesByIds(createdVoteIds);
+        } catch (delErr) {
+          console.error("Rollback votes after submit error failed:", delErr);
+        }
       }
-      
-      // Extract error message from various error types (Supabase, standard Error, etc.)
-      const errorMessage = error?.message || error?.errorDescription || error?.details || (typeof error === 'string' ? error : "Unknown error");
+
+      if (unique) {
+        const existing = await storage.getVotesByStudent(studentId, electionId);
+        const completed = await storage.hasStudentCompletedBallotForElection(studentId, electionId);
+        if (completed && existingBallotMatchesSubmission(existing, votes, positionIds)) {
+          return res.json({
+            message: "Votes submitted successfully",
+            votes: existing,
+          });
+        }
+        return res.status(409).json({
+          message:
+            "Your vote may already be recorded, or another submission is in progress. Refresh the page to confirm.",
+        });
+      }
+
+      const errorMessage =
+        error?.message ||
+        error?.errorDescription ||
+        error?.details ||
+        (typeof error === "string" ? error : "Unknown error");
       console.error(`Error creating vote:`, error);
       return res.status(500).json({
         message: "Failed to submit votes",
