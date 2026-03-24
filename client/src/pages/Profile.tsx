@@ -11,8 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { User, Mail, GraduationCap, Upload, Image as ImageIcon, Save, Loader2 } from "lucide-react";
+import { User, Mail, GraduationCap, Upload, Save, Loader2, KeyRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { changeStudentPasswordSchema } from "@shared/schema.js";
 
 export default function Profile() {
   const { user, refetchUser } = useAuth();
@@ -20,8 +21,12 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  });
   const [formData, setFormData] = useState({
     fullName: user?.fullName || "",
     email: user?.email || "",
@@ -193,15 +198,72 @@ export default function Profile() {
     },
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: async (body: {
+      currentPassword: string;
+      newPassword: string;
+      confirmNewPassword: string;
+    }) => {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          typeof data.message === "string"
+            ? data.message
+            : Array.isArray(data.errors)
+              ? data.errors.map((e: { message?: string }) => e.message).filter(Boolean).join(". ")
+              : "Failed to change password";
+        throw new Error(msg);
+      }
+      return data;
+    },
+    onSuccess: () => {
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
+      toast({
+        title: "Password updated",
+        description: "You can use your new password the next time you sign in.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Could not update password",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
-    setIsSaving(true);
     updateProfileMutation.mutate({
       fullName: formData.fullName,
       email: formData.email || null,
       year: formData.year || null,
       profilePicture: formData.profilePicture || null,
     });
-    setIsSaving(false);
+  };
+
+  const handleChangePassword = () => {
+    const parsed = changeStudentPasswordSchema.safeParse(passwordForm);
+    if (!parsed.success) {
+      const first = parsed.error.flatten().fieldErrors;
+      const msg =
+        first.currentPassword?.[0] ||
+        first.newPassword?.[0] ||
+        first.confirmNewPassword?.[0] ||
+        "Please check the password fields";
+      toast({
+        title: "Invalid input",
+        description: msg,
+        variant: "destructive",
+      });
+      return;
+    }
+    changePasswordMutation.mutate(parsed.data);
   };
 
   const getInitials = (name: string) => {
@@ -228,7 +290,7 @@ export default function Profile() {
               <p className="text-muted-foreground">Manage your personal information and account settings</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               {/* Profile Picture Card */}
               <Card>
                 <CardHeader>
@@ -365,16 +427,16 @@ export default function Profile() {
                         });
                         setPreviewImage(null);
                       }}
-                      disabled={isSaving || isUploading}
+                      disabled={updateProfileMutation.isPending || isUploading}
                     >
                       Reset
                     </Button>
                     <Button
                       onClick={handleSave}
-                      disabled={isSaving || isUploading}
+                      disabled={updateProfileMutation.isPending || isUploading}
                       className="min-w-[130px]"
                     >
-                      {isSaving ? (
+                      {updateProfileMutation.isPending ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           Saving...
@@ -390,6 +452,79 @@ export default function Profile() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  Change password
+                </CardTitle>
+                <CardDescription>
+                  Enter your current password, then choose a new one (at least 8 characters).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-xl">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current password</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    autoComplete="current-password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) =>
+                      setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))
+                    }
+                    disabled={changePasswordMutation.isPending}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New password</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) =>
+                      setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))
+                    }
+                    disabled={changePasswordMutation.isPending}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmNewPassword">Confirm new password</Label>
+                  <Input
+                    id="confirmNewPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordForm.confirmNewPassword}
+                    onChange={(e) =>
+                      setPasswordForm((p) => ({ ...p, confirmNewPassword: e.target.value }))
+                    }
+                    disabled={changePasswordMutation.isPending}
+                  />
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleChangePassword}
+                    disabled={changePasswordMutation.isPending}
+                  >
+                    {changePasswordMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Updating…
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="h-4 w-4 mr-2" />
+                        Update password
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </main>
         <Footer />

@@ -1,7 +1,7 @@
 import "../env.js";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "./routes/auth.js";
+import { loginRoute, logoutRoute, meRoute, updateProfileRoute, changePasswordRoute } from "./routes/auth.js";
 import { uploadAvatarRoute, uploadMiddleware, uploadCandidatePhotoBase64Route } from "./routes/upload.js";
 import { getCandidatesRoute, getCandidateByIdRoute, getCandidatesByPositionRoute } from "./routes/candidates.js";
 import { getPositionsRoute, getPositionByIdRoute } from "./routes/positions.js";
@@ -23,6 +23,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post(`${apiPrefix}/auth/logout`, logoutRoute);
   app.get(`${apiPrefix}/auth/me`, jwtAuth, meRoute);
   app.put(`${apiPrefix}/auth/profile`, jwtAuth, updateProfileRoute);
+  app.post(`${apiPrefix}/auth/change-password`, jwtAuth, changePasswordRoute);
   app.post(`${apiPrefix}/auth/upload-avatar`, jwtAuth, uploadMiddleware, uploadAvatarRoute);
   
   // Note: upload-avatar-base64 is handled in api/index.ts for Vercel compatibility

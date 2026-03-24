@@ -1,8 +1,9 @@
 import type { Express, Request, Response } from "express";
 import passport from "../auth/passport.js";
-import { loginStudentSchema } from "../../shared/schema.js";
+import { changeStudentPasswordSchema, loginStudentSchema } from "../../shared/schema.js";
 import { storage } from "../storage.js";
 import { signToken } from "../utils/jwt.js";
+import { comparePassword, hashPassword } from "../utils/password.js";
 import { z } from "zod";
 
 // Type augmentation for Express Request with user
@@ -173,6 +174,50 @@ export async function updateProfileRoute(req: Request, res: Response) {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to update profile",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+/**
+ * Change password (students only)
+ * POST /api/auth/change-password
+ */
+export async function changePasswordRoute(req: Request, res: Response) {
+  const user = (req as any).user;
+  if (!user?.id) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  if (user.type !== "student") {
+    return res.status(403).json({ message: "Only students can use this endpoint" });
+  }
+
+  const validation = changeStudentPasswordSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      message: "Validation error",
+      errors: validation.error.errors,
+    });
+  }
+
+  try {
+    const student = await storage.getStudent(user.id);
+    if (!student) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    const currentOk = await comparePassword(validation.data.currentPassword, student.password);
+    if (!currentOk) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    const hashed = await hashPassword(validation.data.newPassword);
+    await storage.updateStudentPassword(user.id, hashed);
+
+    return res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update password",
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }

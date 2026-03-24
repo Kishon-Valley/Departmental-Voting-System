@@ -20,6 +20,22 @@ export const loginStudentSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+/** Student self-service password change (profile page) */
+export const changeStudentPasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z.string().min(8, "New password must be at least 8 characters"),
+    confirmNewPassword: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((data) => data.newPassword === data.confirmNewPassword, {
+    message: "New passwords do not match",
+    path: ["confirmNewPassword"],
+  })
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    message: "New password must be different from your current password",
+    path: ["newPassword"],
+  });
+
 export const loginAdminSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -128,6 +144,7 @@ export type InsertElection = {
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
 export type LoginStudent = z.infer<typeof loginStudentSchema>;
+export type ChangeStudentPassword = z.infer<typeof changeStudentPasswordSchema>;
 export type LoginAdmin = z.infer<typeof loginAdminSchema>;
 export type SubmitVote = z.infer<typeof submitVoteSchema>;
 export type SubmitVotes = z.infer<typeof submitVotesSchema>;

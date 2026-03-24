@@ -3,7 +3,7 @@ import "../env.js"; // Load environment variables first
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import express from "express";
 import passport from "../server/auth/passport.js";
-import { loginRoute, logoutRoute, meRoute, updateProfileRoute } from "../server/routes/auth.js";
+import { loginRoute, logoutRoute, meRoute, updateProfileRoute, changePasswordRoute } from "../server/routes/auth.js";
 import { uploadAvatarRoute, uploadAvatarBase64Route, uploadCandidatePhotoBase64Route } from "../server/routes/upload.js";
 import { getCandidatesRoute, getCandidateByIdRoute, getCandidatesByPositionRoute } from "../server/routes/candidates.js";
 import { getPositionsRoute, getPositionByIdRoute } from "../server/routes/positions.js";
@@ -71,6 +71,8 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/auth/me", jwtAuth, meRoute);
   app.put("/auth/profile", jwtAuth, updateProfileRoute);
   app.put("/api/auth/profile", jwtAuth, updateProfileRoute);
+  app.post("/auth/change-password", jwtAuth, changePasswordRoute);
+  app.post("/api/auth/change-password", jwtAuth, changePasswordRoute);
   // File upload routes (protected with JWT authentication)
   app.post("/auth/upload-avatar", jwtAuth, uploadAvatarRoute);
   app.post("/api/auth/upload-avatar", jwtAuth, uploadAvatarRoute);

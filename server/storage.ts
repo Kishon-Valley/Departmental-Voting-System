@@ -98,6 +98,7 @@ export interface IStorage {
   getStudentByIndexNumber(indexNumber: string): Promise<Student | undefined>;
   createStudent(student: InsertStudent): Promise<Student>;
   updateStudent(id: string, updates: { fullName?: string; email?: string | null; year?: string | null; profilePicture?: string | null }): Promise<Student>;
+  updateStudentPassword(id: string, hashedPassword: string): Promise<void>;
   updateStudentHasVoted(indexNumber: string, hasVoted: boolean): Promise<void>;
 
   // Position operations
@@ -252,6 +253,18 @@ export class DatabaseStorage implements IStorage {
 
     if (error) throw error;
     return mapStudentRow(data);
+  }
+
+  async updateStudentPassword(id: string, hashedPassword: string): Promise<void> {
+    const { error } = await supabase
+      .from("students")
+      .update({
+        password: hashedPassword,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) throw error;
   }
 
   async updateStudentHasVoted(indexNumber: string, hasVoted: boolean): Promise<void> {
