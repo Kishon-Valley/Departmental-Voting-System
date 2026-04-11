@@ -10,6 +10,7 @@ import { getPositionsRoute, getPositionByIdRoute } from "../server/routes/positi
 import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
+import { getPublicStatsRoute } from "../server/routes/stats.js";
 import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
 import { uploadExcelFromStorageRoute } from "../server/routes/adminExcel.js";
 import { jwtAuth, optionalJwtAuth, requireAuth, requireAdmin } from "../server/middleware/jwtAuth.js";
@@ -109,6 +110,9 @@ async function getApp(): Promise<express.Application> {
   // Election routes
   app.get("/election/status", getElectionStatusRoute);
   app.get("/api/election/status", getElectionStatusRoute);
+
+  app.get("/stats/public", getPublicStatsRoute);
+  app.get("/api/stats/public", getPublicStatsRoute);
 
   // Admin routes
   app.post("/admin/login", adminLoginRoute);

@@ -130,6 +130,13 @@ export interface IStorage {
   // Student operations (admin)
   getAllStudents(): Promise<Student[]>;
 
+  /** Row counts for public home page (no PII). */
+  getPublicStats(): Promise<{
+    openPositions: number;
+    totalCandidates: number;
+    eligibleVoters: number;
+  }>;
+
   // Election operations
   getElection(): Promise<Election | undefined>;
   getActiveElection(): Promise<Election | undefined>;
@@ -287,6 +294,28 @@ export class DatabaseStorage implements IStorage {
     
     if (error) throw error;
     return (data || []).map(mapStudentRow);
+  }
+
+  async getPublicStats(): Promise<{
+    openPositions: number;
+    totalCandidates: number;
+    eligibleVoters: number;
+  }> {
+    const [positionsRes, candidatesRes, studentsRes] = await Promise.all([
+      supabase.from("positions").select("*", { count: "exact", head: true }),
+      supabase.from("candidates").select("*", { count: "exact", head: true }),
+      supabase.from("students").select("*", { count: "exact", head: true }),
+    ]);
+
+    if (positionsRes.error) throw positionsRes.error;
+    if (candidatesRes.error) throw candidatesRes.error;
+    if (studentsRes.error) throw studentsRes.error;
+
+    return {
+      openPositions: positionsRes.count ?? 0,
+      totalCandidates: candidatesRes.count ?? 0,
+      eligibleVoters: studentsRes.count ?? 0,
+    };
   }
 
   // Position operations
