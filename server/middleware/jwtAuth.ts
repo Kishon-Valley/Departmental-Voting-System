@@ -41,7 +41,7 @@ export async function jwtAuth(req: Request, res: Response, next: NextFunction) {
         return res.status(401).json({ message: "User not found" });
       }
       const { password: _, ...studentWithoutPassword } = student;
-      user = studentWithoutPassword;
+      user = { ...studentWithoutPassword, type: "student" as const };
       const activeElection = await storage.getActiveElection();
       if (activeElection) {
         user.hasVoted = await storage.hasStudentCompletedBallotForElection(
@@ -104,7 +104,7 @@ export async function optionalJwtAuth(req: Request, res: Response, next: NextFun
           const student = await storage.getStudent(payload.id);
           if (student) {
             const { password: _, ...studentWithoutPassword } = student;
-            user = studentWithoutPassword;
+            user = { ...studentWithoutPassword, type: "student" as const };
             const activeElection = await storage.getActiveElection();
             if (activeElection) {
               user.hasVoted = await storage.hasStudentCompletedBallotForElection(
