@@ -7,6 +7,9 @@ import { storage } from "../storage.js";
  */
 export async function getElectionStatusRoute(req: Request, res: Response) {
   try {
+    // Ensure election `status` matches its schedule (start/end date/time).
+    await storage.syncElectionStatuses();
+
     const election = await storage.getElection();
     
     if (!election) {

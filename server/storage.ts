@@ -143,6 +143,13 @@ export interface IStorage {
   getMostRecentlyClosedElection(): Promise<Election | undefined>;
   /** Active election tallies; if none, last closed (published); else latest row. */
   getElectionForAggregatingResults(): Promise<Election | undefined>;
+  /**
+   * Sync elections `status` based on their `start_date`/`end_date`.
+   *
+   * This compensates for the lack of a background cron in serverless environments:
+   * the status will be corrected when relevant endpoints are hit.
+   */
+  syncElectionStatuses(now?: Date): Promise<void>;
   createElection(election: InsertElection): Promise<Election>;
   updateElectionStatus(id: string, status: "upcoming" | "active" | "closed"): Promise<Election>;
   updateElectionDates(id: string, startDate: Date | string | null, endDate: Date | string | null): Promise<Election>;
@@ -687,6 +694,41 @@ export class DatabaseStorage implements IStorage {
       return closed;
     }
     return this.getElection();
+  }
+
+  async syncElectionStatuses(now: Date = new Date()): Promise<void> {
+    const nowMs = now.getTime();
+
+    const { data, error } = await supabase
+      .from("elections")
+      .select("id,status,start_date,end_date");
+
+    if (error) throw error;
+
+    for (const row of data || []) {
+      const startMs = row.start_date ? new Date(row.start_date).getTime() : null;
+      const endMs = row.end_date ? new Date(row.end_date).getTime() : null;
+
+      // Decide desired state based on schedule.
+      // If an election has an end_date that is reached, it must be closed.
+      // Otherwise, if start_date is reached, it's active; else upcoming.
+      let desiredStatus: "upcoming" | "active" | "closed";
+      if (endMs !== null && !Number.isNaN(endMs) && nowMs >= endMs) {
+        desiredStatus = "closed";
+      } else if (
+        startMs !== null &&
+        !Number.isNaN(startMs) &&
+        nowMs >= startMs
+      ) {
+        desiredStatus = "active";
+      } else {
+        desiredStatus = "upcoming";
+      }
+
+      if (row.status !== desiredStatus) {
+        await this.updateElectionStatus(row.id, desiredStatus);
+      }
+    }
   }
 
   async createElection(electionData: InsertElection): Promise<Election> {

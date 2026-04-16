@@ -54,6 +54,9 @@ export async function submitVotesRoute(req: Request, res: Response) {
   }
 
   try {
+    // Ensure election `status` matches its schedule (start/end date/time).
+    await storage.syncElectionStatuses();
+
     // Validate request body
     const validation = submitVotesSchema.safeParse(req.body);
     if (!validation.success) {
@@ -82,6 +85,28 @@ export async function submitVotesRoute(req: Request, res: Response) {
     }
 
     const electionId = election.id;
+
+    // Defensive runtime enforcement: if DB status is wrong, don't allow voting.
+    const nowMs = Date.now();
+    const startMs =
+      election.startDate !== null && election.startDate !== undefined
+        ? new Date(election.startDate as any).getTime()
+        : null;
+    const endMs =
+      election.endDate !== null && election.endDate !== undefined
+        ? new Date(election.endDate as any).getTime()
+        : null;
+
+    if (startMs !== null && !Number.isNaN(startMs) && nowMs < startMs) {
+      return res.status(403).json({
+        message: "Voting has not started yet.",
+      });
+    }
+    if (endMs !== null && !Number.isNaN(endMs) && nowMs >= endMs) {
+      return res.status(403).json({
+        message: "Voting has ended.",
+      });
+    }
 
     // One ballot per student per election (not global has_voted on students row)
     const alreadyCompleted = await storage.hasStudentCompletedBallotForElection(studentId, electionId);
@@ -244,6 +269,9 @@ export async function getMyVotesRoute(req: Request, res: Response) {
   }
 
   try {
+    // Ensure election `status` matches its schedule (start/end date/time).
+    await storage.syncElectionStatuses();
+
     const studentId = user.id;
     const active = await storage.getActiveElection();
     if (!active) {
