@@ -11,7 +11,7 @@ import { submitVotesRoute, getMyVotesRoute } from "../server/routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "../server/routes/results.js";
 import { getElectionStatusRoute } from "../server/routes/election.js";
 import { getPublicStatsRoute } from "../server/routes/stats.js";
-import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
+import { adminLoginRoute, adminMeRoute, listAdminElectionsRoute, getAdminElectionRecordRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "../server/routes/admin.js";
 import { uploadExcelFromStorageRoute } from "../server/routes/adminExcel.js";
 import { jwtAuth, optionalJwtAuth, requireAuth, requireAdmin } from "../server/middleware/jwtAuth.js";
 import Busboy from "busboy";
@@ -121,6 +121,10 @@ async function getApp(): Promise<express.Application> {
   app.get("/api/admin/me", jwtAuth, requireAdmin, adminMeRoute);
   
   // Protected admin routes
+  app.get("/admin/elections", jwtAuth, requireAdmin, listAdminElectionsRoute);
+  app.get("/api/admin/elections", jwtAuth, requireAdmin, listAdminElectionsRoute);
+  app.get("/admin/elections/:id", jwtAuth, requireAdmin, getAdminElectionRecordRoute);
+  app.get("/api/admin/elections/:id", jwtAuth, requireAdmin, getAdminElectionRecordRoute);
   app.post("/admin/elections", jwtAuth, requireAdmin, createElectionRoute);
   app.post("/api/admin/elections", jwtAuth, requireAdmin, createElectionRoute);
   app.put("/admin/elections/:id/status", jwtAuth, requireAdmin, updateElectionStatusRoute);

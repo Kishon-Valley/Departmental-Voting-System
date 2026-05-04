@@ -93,6 +93,47 @@ export function adminMeRoute(req: Request, res: Response) {
 }
 
 /**
+ * List all elections (newest first). Admin-only.
+ * GET /api/admin/elections
+ */
+export async function listAdminElectionsRoute(_req: Request, res: Response) {
+  try {
+    const elections = await storage.getAllElections();
+    return res.json({ elections });
+  } catch (error) {
+    console.error("Error listing elections:", error);
+    return res.status(500).json({ message: "Failed to load elections" });
+  }
+}
+
+/**
+ * Single election record with participation stats. Admin-only, read-only.
+ * GET /api/admin/elections/:id
+ */
+export async function getAdminElectionRecordRoute(req: Request, res: Response) {
+  const idParse = z.string().uuid().safeParse(req.params.id);
+  if (!idParse.success) {
+    return res.status(400).json({ message: "Invalid election id" });
+  }
+
+  try {
+    const election = await storage.getElectionById(idParse.data);
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
+    }
+
+    const participation = await storage.getVoteParticipationStatsForElection(idParse.data);
+    return res.json({
+      election,
+      participation,
+    });
+  } catch (error) {
+    console.error("Error loading election record:", error);
+    return res.status(500).json({ message: "Failed to load election record" });
+  }
+}
+
+/**
  * Middleware to check if user is admin
  * Note: Use requireAdmin from server/middleware/jwtAuth.ts instead
  */

@@ -7,9 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Plus, Loader2, AlertCircle, CheckCircle2, Clock, Megaphone } from "lucide-react";
+import { Calendar, Plus, Loader2, AlertCircle, CheckCircle2, Clock, Megaphone, History } from "lucide-react";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import AdminNavbar from "@/components/admin/AdminNavbar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -19,11 +27,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface ElectionRow {
+  id: string;
+  status: "upcoming" | "active" | "closed";
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ElectionRecordResponse {
+  election: ElectionRow;
+  participation: {
+    ballotRowCount: number;
+    distinctVoterCount: number;
+  };
+}
+
 export default function AdminElections() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDatesDialogOpen, setIsEditDatesDialogOpen] = useState(false);
+  const [detailElectionId, setDetailElectionId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     status: "upcoming" as "upcoming" | "active" | "closed",
     startDate: "",
@@ -34,10 +60,29 @@ export default function AdminElections() {
     endDate: "",
   });
 
-  // Fetch current election
-  const { data: electionData, isLoading } = useQuery<{ status: string; startDate?: string | null; endDate?: string | null; id?: string }>({
+  // Fetch current election (public status endpoint; used for operational controls)
+  const { data: electionData, isLoading: isElectionStatusLoading } = useQuery<{
+    status: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    id?: string;
+  }>({
     queryKey: ["/api/election/status"],
     queryFn: getQueryFn({ on401: "throw" }),
+  });
+
+  const { data: electionsListData, isLoading: isElectionsListLoading } = useQuery<{ elections: ElectionRow[] }>({
+    queryKey: ["/api/admin/elections"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  });
+
+  const { data: electionRecordData, isLoading: isElectionRecordLoading } = useQuery<ElectionRecordResponse>({
+    queryKey: ["/api/admin/elections", detailElectionId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/admin/elections/${detailElectionId}`);
+      return res.json();
+    },
+    enabled: !!detailElectionId,
   });
 
   // Create election mutation
@@ -48,6 +93,7 @@ export default function AdminElections() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/election/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/elections"] });
       setIsCreateDialogOpen(false);
       toast({
         title: "Election Created",
@@ -71,6 +117,7 @@ export default function AdminElections() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/election/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/elections"] });
       toast({
         title: "Status Updated",
         description: "Election status has been updated successfully.",
@@ -93,6 +140,7 @@ export default function AdminElections() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/election/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/elections"] });
       setIsEditDatesDialogOpen(false);
       toast({
         title: "Dates Updated",
@@ -212,8 +260,8 @@ export default function AdminElections() {
             </Button>
           </div>
 
-          {isLoading ? (
-            <div className="flex items-center justify-center min-h-[400px]">
+          {isElectionStatusLoading ? (
+            <div className="flex items-center justify-center min-h-[240px]">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : electionData ? (
@@ -349,6 +397,158 @@ export default function AdminElections() {
               </CardContent>
             </Card>
           )}
+
+          <Card className="mt-8">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <History className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <CardTitle>Election records</CardTitle>
+                  <CardDescription>
+                    Every election held in the system. Open a row to view stored fields and turnout for that election.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isElectionsListLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Start</TableHead>
+                        <TableHead>End</TableHead>
+                        <TableHead className="text-right w-[100px]">Record</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(electionsListData?.elections ?? []).length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                            No elections in the database yet.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        (electionsListData?.elections ?? []).map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell className="whitespace-nowrap">
+                              {row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="capitalize">{row.status}</TableCell>
+                            <TableCell className="text-muted-foreground whitespace-nowrap">
+                              {row.startDate ? new Date(row.startDate).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground whitespace-nowrap">
+                              {row.endDate ? new Date(row.endDate).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="outline" size="sm" onClick={() => setDetailElectionId(row.id)}>
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog
+            open={!!detailElectionId}
+            onOpenChange={(open) => {
+              if (!open) setDetailElectionId(null);
+            }}
+          >
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Election record</DialogTitle>
+                <DialogDescription>
+                  Read-only snapshot from the database for this election. Vote counts include only ballots stored for
+                  this election id.
+                </DialogDescription>
+              </DialogHeader>
+              {detailElectionId && (
+                <div className="space-y-4 py-2">
+                  {isElectionRecordLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : electionRecordData ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-muted-foreground">Election id</Label>
+                        <p className="font-mono text-xs break-all">{electionRecordData.election.id}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-muted-foreground">Status</Label>
+                          <p className="font-medium capitalize">{electionRecordData.election.status}</p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Ballot lines recorded</Label>
+                          <p className="font-medium tabular-nums">{electionRecordData.participation.ballotRowCount}</p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Distinct voters</Label>
+                          <p className="font-medium tabular-nums">{electionRecordData.participation.distinctVoterCount}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-muted-foreground">Start</Label>
+                        <p className="text-sm">
+                          {electionRecordData.election.startDate
+                            ? new Date(electionRecordData.election.startDate).toLocaleString()
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-muted-foreground">End</Label>
+                        <p className="text-sm">
+                          {electionRecordData.election.endDate
+                            ? new Date(electionRecordData.election.endDate).toLocaleString()
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <Label className="text-muted-foreground">Created at</Label>
+                          <p>
+                            {electionRecordData.election.createdAt
+                              ? new Date(electionRecordData.election.createdAt).toLocaleString()
+                              : "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-muted-foreground">Last updated</Label>
+                          <p>
+                            {electionRecordData.election.updatedAt
+                              ? new Date(electionRecordData.election.updatedAt).toLocaleString()
+                              : "—"}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4">Could not load this record.</p>
+                  )}
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="secondary" onClick={() => setDetailElectionId(null)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Create Election Dialog */}
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

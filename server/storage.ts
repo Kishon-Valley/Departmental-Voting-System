@@ -139,6 +139,12 @@ export interface IStorage {
 
   // Election operations
   getElection(): Promise<Election | undefined>;
+  /** All elections, newest first (admin history). */
+  getAllElections(): Promise<Election[]>;
+  getElectionById(id: string): Promise<Election | undefined>;
+  getVoteParticipationStatsForElection(
+    electionId: string,
+  ): Promise<{ ballotRowCount: number; distinctVoterCount: number }>;
   getActiveElection(): Promise<Election | undefined>;
   getMostRecentlyClosedElection(): Promise<Election | undefined>;
   /** Active election tallies; if none, last closed (published); else latest row. */
@@ -604,12 +610,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     const done = new Set<string>();
-    for (const [sid, posSet] of byStudent) {
+    for (const [sid, posSet] of Array.from(byStudent.entries())) {
       if (posSet.size < required.size) {
         continue;
       }
       let coversAll = true;
-      for (const pid of required) {
+      for (const pid of Array.from(required)) {
         if (!posSet.has(pid)) {
           coversAll = false;
           break;
@@ -656,6 +662,42 @@ export class DatabaseStorage implements IStorage {
     
     if (error || !data) return undefined;
     return mapElectionRow(data);
+  }
+
+  async getAllElections(): Promise<Election[]> {
+    const { data, error } = await supabase
+      .from("elections")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(mapElectionRow);
+  }
+
+  async getElectionById(id: string): Promise<Election | undefined> {
+    const { data, error } = await supabase
+      .from("elections")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return undefined;
+    return mapElectionRow(data);
+  }
+
+  async getVoteParticipationStatsForElection(
+    electionId: string,
+  ): Promise<{ ballotRowCount: number; distinctVoterCount: number }> {
+    const { data, error } = await supabase
+      .from("votes")
+      .select("student_id")
+      .eq("election_id", electionId);
+
+    if (error) throw error;
+    const rows = data || [];
+    const distinctVoterCount = new Set(rows.map((r: { student_id: string }) => r.student_id)).size;
+    return { ballotRowCount: rows.length, distinctVoterCount };
   }
 
   async getActiveElection(): Promise<Election | undefined> {

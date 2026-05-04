@@ -9,7 +9,7 @@ import { submitVotesRoute, getMyVotesRoute } from "./routes/votes.js";
 import { getResultsRoute, getResultsByPositionRoute } from "./routes/results.js";
 import { getElectionStatusRoute } from "./routes/election.js";
 import { getPublicStatsRoute } from "./routes/stats.js";
-import { adminLoginRoute, adminMeRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "./routes/admin.js";
+import { adminLoginRoute, adminMeRoute, listAdminElectionsRoute, getAdminElectionRecordRoute, createElectionRoute, updateElectionStatusRoute, updateElectionDatesRoute, createPositionRoute, updatePositionRoute, deletePositionRoute, createCandidateRoute, updateCandidateRoute, deleteCandidateRoute, getAllVotesRoute, getStudentsRoute, createStudentRoute } from "./routes/admin.js";
 import { uploadExcelFromStorageRoute } from "./routes/adminExcel.js";
 import { jwtAuth, requireAuth, requireAdmin } from "./middleware/jwtAuth.js";
 
@@ -57,6 +57,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${apiPrefix}/admin/me`, jwtAuth, requireAdmin, adminMeRoute);
   
   // Protected admin routes
+  app.get(`${apiPrefix}/admin/elections`, jwtAuth, requireAdmin, listAdminElectionsRoute);
+  app.get(`${apiPrefix}/admin/elections/:id`, jwtAuth, requireAdmin, getAdminElectionRecordRoute);
   app.post(`${apiPrefix}/admin/elections`, jwtAuth, requireAdmin, createElectionRoute);
   app.put(`${apiPrefix}/admin/elections/:id/status`, jwtAuth, requireAdmin, updateElectionStatusRoute);
   app.put(`${apiPrefix}/admin/elections/:id/dates`, jwtAuth, requireAdmin, updateElectionDatesRoute);
