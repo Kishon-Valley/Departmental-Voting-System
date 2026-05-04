@@ -29,6 +29,7 @@ import {
 
 interface ElectionRow {
   id: string;
+  name: string;
   status: "upcoming" | "active" | "closed";
   startDate: string | null;
   endDate: string | null;
@@ -51,6 +52,7 @@ export default function AdminElections() {
   const [isEditDatesDialogOpen, setIsEditDatesDialogOpen] = useState(false);
   const [detailElectionId, setDetailElectionId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
+    name: "",
     status: "upcoming" as "upcoming" | "active" | "closed",
     startDate: "",
     endDate: "",
@@ -63,9 +65,11 @@ export default function AdminElections() {
   // Fetch current election (public status endpoint; used for operational controls)
   const { data: electionData, isLoading: isElectionStatusLoading } = useQuery<{
     status: string;
+    name?: string;
     startDate?: string | null;
     endDate?: string | null;
     id?: string;
+    election?: { name?: string };
   }>({
     queryKey: ["/api/election/status"],
     queryFn: getQueryFn({ on401: "throw" }),
@@ -87,14 +91,21 @@ export default function AdminElections() {
 
   // Create election mutation
   const createMutation = useMutation({
-    mutationFn: async (data: { status: string; startDate?: string | null; endDate?: string | null }) => {
+    mutationFn: async (data: {
+      name: string;
+      status: string;
+      startDate?: string | null;
+      endDate?: string | null;
+    }) => {
       const res = await apiRequest("POST", "/api/admin/elections", data);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/election/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/elections"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/votes"] });
       setIsCreateDialogOpen(false);
+      setFormData({ name: "", status: "upcoming", startDate: "", endDate: "" });
       toast({
         title: "Election Created",
         description: "Election has been created successfully.",
@@ -165,7 +176,18 @@ export default function AdminElections() {
       return date.toISOString();
     };
     
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) {
+      toast({
+        title: "Name required",
+        description: "Please enter an election name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createMutation.mutate({
+      name: trimmedName,
       status: formData.status,
       startDate: convertToISO(formData.startDate),
       endDate: convertToISO(formData.endDate),
@@ -254,7 +276,12 @@ export default function AdminElections() {
               <h1 className="text-3xl font-bold font-serif mb-2">Election Management</h1>
               <p className="text-muted-foreground">Manage election settings and status</p>
             </div>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Button
+              onClick={() => {
+                setFormData({ name: "", status: "upcoming", startDate: "", endDate: "" });
+                setIsCreateDialogOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Create Election
             </Button>
@@ -278,6 +305,11 @@ export default function AdminElections() {
                       {getStatusIcon(electionData.status)}
                       <span className="font-semibold capitalize">{electionData.status}</span>
                     </div>
+                    {(electionData.name ?? electionData.election?.name) && (
+                      <p className="text-sm font-medium mt-1">
+                        {electionData.name ?? electionData.election?.name}
+                      </p>
+                    )}
                     {electionData.startDate && (
                       <p className="text-sm mt-2">
                         Start: {new Date(electionData.startDate).toLocaleString()}
@@ -390,7 +422,12 @@ export default function AdminElections() {
                 <p className="text-muted-foreground mb-6">
                   Create an election to start managing the voting process.
                 </p>
-                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                <Button
+                  onClick={() => {
+                    setFormData({ name: "", status: "upcoming", startDate: "", endDate: "" });
+                    setIsCreateDialogOpen(true);
+                  }}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Election
                 </Button>
@@ -420,6 +457,7 @@ export default function AdminElections() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Name</TableHead>
                         <TableHead>Created</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Start</TableHead>
@@ -430,13 +468,16 @@ export default function AdminElections() {
                     <TableBody>
                       {(electionsListData?.elections ?? []).length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                             No elections in the database yet.
                           </TableCell>
                         </TableRow>
                       ) : (
                         (electionsListData?.elections ?? []).map((row) => (
                           <TableRow key={row.id}>
+                            <TableCell className="font-medium max-w-[220px] truncate" title={row.name}>
+                              {row.name}
+                            </TableCell>
                             <TableCell className="whitespace-nowrap">
                               {row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}
                             </TableCell>
@@ -484,6 +525,10 @@ export default function AdminElections() {
                     </div>
                   ) : electionRecordData ? (
                     <>
+                      <div className="space-y-1">
+                        <Label className="text-muted-foreground">Name</Label>
+                        <p className="font-medium">{electionRecordData.election.name}</p>
+                      </div>
                       <div className="space-y-1">
                         <Label className="text-muted-foreground">Election id</Label>
                         <p className="font-mono text-xs break-all">{electionRecordData.election.id}</p>
@@ -551,15 +596,35 @@ export default function AdminElections() {
           </Dialog>
 
           {/* Create Election Dialog */}
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={(open) => {
+              setIsCreateDialogOpen(open);
+              if (open) {
+                setFormData({ name: "", status: "upcoming", startDate: "", endDate: "" });
+              }
+            }}
+          >
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create New Election</DialogTitle>
                 <DialogDescription>
-                  Create a new election and set its initial status.
+                  Give the election a clear name (shown in admin history and vote reports), then set status and
+                  schedule.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="election-name">Election name</Label>
+                  <Input
+                    id="election-name"
+                    placeholder="e.g. 2025/2026 Department SRC Elections"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    maxLength={200}
+                    autoComplete="off"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select

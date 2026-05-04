@@ -78,6 +78,7 @@ function mapVoteRow(row: any): Vote {
 function mapElectionRow(row: any): Election {
   return {
     id: row.id,
+    name: typeof row.name === "string" && row.name.trim() !== "" ? row.name : "Legacy election",
     status: row.status,
     startDate: row.start_date,
     endDate: row.end_date,
@@ -120,7 +121,8 @@ export interface IStorage {
   createVote(vote: InsertVote): Promise<Vote>;
   getVotesByStudent(studentId: string, electionId?: string): Promise<Vote[]>;
   getVotesByPosition(positionId: string): Promise<Vote[]>;
-  getAllVotes(): Promise<Vote[]>;
+  /** When `electionId` is set, returns only votes for that election. */
+  getAllVotes(electionId?: string): Promise<Vote[]>;
   hasStudentVotedForPosition(studentId: string, positionId: string, electionId: string): Promise<boolean>;
   hasStudentCompletedBallotForElection(studentId: string, electionId: string): Promise<boolean>;
   deleteVotesByIds(ids: string[]): Promise<void>;
@@ -545,12 +547,13 @@ export class DatabaseStorage implements IStorage {
     return (data || []).map(mapVoteRow);
   }
 
-  async getAllVotes(): Promise<Vote[]> {
-    const { data, error } = await supabase
-      .from("votes")
-      .select("*")
-      .order("created_at", { ascending: false });
-    
+  async getAllVotes(electionId?: string): Promise<Vote[]> {
+    let q = supabase.from("votes").select("*").order("created_at", { ascending: false });
+    if (electionId) {
+      q = q.eq("election_id", electionId);
+    }
+    const { data, error } = await q;
+
     if (error) throw error;
     return (data || []).map(mapVoteRow);
   }
@@ -777,6 +780,7 @@ export class DatabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from("elections")
       .insert({
+        name: electionData.name.trim(),
         status: electionData.status,
         start_date: electionData.startDate,
         end_date: electionData.endDate,

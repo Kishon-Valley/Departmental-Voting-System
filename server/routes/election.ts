@@ -21,6 +21,7 @@ export async function getElectionStatusRoute(req: Request, res: Response) {
     
     return res.json({
       status: election.status,
+      name: election.name,
       startDate: election.startDate,
       endDate: election.endDate,
       id: election.id,

@@ -105,6 +105,7 @@ export type Vote = {
 
 export type Election = {
   id: string;
+  name: string;
   status: "upcoming" | "active" | "closed";
   startDate: Date | string | null;
   endDate: Date | string | null;
@@ -135,6 +136,7 @@ export type InsertVote = {
 };
 
 export type InsertElection = {
+  name: string;
   status: "upcoming" | "active" | "closed";
   startDate?: Date | string | null;
   endDate?: Date | string | null;

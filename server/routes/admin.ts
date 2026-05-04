@@ -265,6 +265,7 @@ export async function updateElectionDatesRoute(req: Request, res: Response) {
 export async function createElectionRoute(req: Request, res: Response) {
   try {
     const schema = z.object({
+      name: z.string().trim().min(1, "Election name is required").max(200),
       status: z.enum(["upcoming", "active", "closed"]),
       startDate: z.string().nullable().optional(),
       endDate: z.string().nullable().optional(),
@@ -278,7 +279,12 @@ export async function createElectionRoute(req: Request, res: Response) {
       });
     }
 
-    const election = await storage.createElection(validation.data);
+    const election = await storage.createElection({
+      name: validation.data.name,
+      status: validation.data.status,
+      startDate: validation.data.startDate ?? null,
+      endDate: validation.data.endDate ?? null,
+    });
     return res.json({ election });
   } catch (error) {
     console.error("Error creating election:", error);
@@ -461,7 +467,24 @@ export async function deleteCandidateRoute(req: Request, res: Response) {
  */
 export async function getAllVotesRoute(req: Request, res: Response) {
   try {
-    const votes = await storage.getAllVotes();
+    const raw = req.query.electionId;
+    let electionId: string | undefined;
+    if (raw !== undefined) {
+      if (typeof raw !== "string") {
+        return res.status(400).json({ message: "Invalid electionId query parameter" });
+      }
+      const parsed = z.string().uuid().safeParse(raw);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid electionId query parameter" });
+      }
+      const election = await storage.getElectionById(parsed.data);
+      if (!election) {
+        return res.status(404).json({ message: "Election not found" });
+      }
+      electionId = parsed.data;
+    }
+
+    const votes = await storage.getAllVotes(electionId);
     return res.json({ votes });
   } catch (error) {
     console.error("Error fetching votes:", error);
