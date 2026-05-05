@@ -10,7 +10,7 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import StatusBadge from "@/components/StatusBadge";
 
 interface Candidate {
   id: string;
@@ -25,10 +25,25 @@ interface Position {
   candidates: Candidate[];
 }
 
+interface ElectionStatusResponse {
+  status: "upcoming" | "active" | "closed";
+  name?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
 export default function Vote() {
   const [votingComplete, setVotingComplete] = useState(false);
   const { user } = useAuth();
-  const { toast } = useToast();
+
+  const {
+    data: electionStatusData,
+    isLoading: electionStatusLoading,
+    error: electionStatusError,
+  } = useQuery<ElectionStatusResponse>({
+    queryKey: ["/api/election/status"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
 
   // Fetch positions
   const { data: positionsData, isLoading: positionsLoading, error: positionsError } = useQuery<{ positions: Array<{ id: string; title: string; description: string | null; order: number }> }>({
@@ -72,11 +87,20 @@ export default function Vote() {
       return aOrder - bOrder;
     }) || [];
 
-  const isLoading = positionsLoading || candidatesLoading;
-  const error = positionsError || candidatesError;
+  const isLoading = electionStatusLoading || positionsLoading || candidatesLoading;
+  const error = electionStatusError || positionsError || candidatesError;
 
   // Check if user has already voted
   const hasVoted = user?.hasVoted || (myVotesData?.votes && myVotesData.votes.length > 0);
+  const electionStatus = electionStatusData?.status ?? "upcoming";
+  const hasActiveElection = electionStatus === "active";
+
+  const formatElectionDateTime = (value?: string | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleString();
+  };
 
   const handleVoteSubmit = async (votes: Record<string, string>) => {
     // This will be handled by VotingForm component
@@ -89,7 +113,61 @@ export default function Vote() {
         <Navbar />
         <main className="flex-1 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {hasVoted && !votingComplete ? (
+          {!hasActiveElection ? (
+            <div className="max-w-3xl mx-auto">
+              <Card>
+                <CardHeader>
+                  <div className="inline-flex items-center gap-2 mb-3">
+                    <AlertCircle className="h-5 w-5 text-amber-600" />
+                    <CardTitle className="text-2xl font-serif" data-testid="text-vote-unavailable-title">
+                      Voting is currently unavailable
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Election status:</span>
+                    <StatusBadge status={electionStatus} />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {electionStatus === "upcoming" ? (
+                    <p className="text-muted-foreground" data-testid="text-vote-upcoming-message">
+                      The next election has not started yet. You will be able to vote once the election becomes active.
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground" data-testid="text-vote-closed-message">
+                      The election has closed, and voting is no longer allowed.
+                    </p>
+                  )}
+
+                  {electionStatusData?.name && (
+                    <p className="text-sm">
+                      <span className="font-semibold">Election:</span> {electionStatusData.name}
+                    </p>
+                  )}
+
+                  {electionStatusData?.startDate && (
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">Start:</span>{" "}
+                      {formatElectionDateTime(electionStatusData.startDate) || "Not set"}
+                    </p>
+                  )}
+
+                  {electionStatusData?.endDate && (
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">End:</span>{" "}
+                      {formatElectionDateTime(electionStatusData.endDate) || "Not set"}
+                    </p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Link href="/">
+                      <Button data-testid="button-vote-unavailable-back-home">Back to Home</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : hasVoted && !votingComplete ? (
             <div className="max-w-2xl mx-auto text-center">
               <Card>
                 <CardHeader>
